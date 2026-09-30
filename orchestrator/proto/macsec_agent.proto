@@ -1,0 +1,53 @@
+// MacsecAgentService — INTERFACE RESERVADA, SEM IMPLEMENTAÇÃO NESTA FASE.
+//
+// MACsec no fronthaul (O-RU<->O-DU) está fora de escopo porque esse
+// tráfego passa por DPDK, incompatível com um agente baseado em
+// kernel/Netlink (ver docs/ARQUITETURA-ORQUESTRADOR.md, seção "Escopo desta
+// fase"). É trabalho do projeto irmão `macsec_fronthaul`.
+//
+// Este arquivo existe só pra reservar o formato do contrato, espelhando
+// IpsecAgentService (mesma forma de "aplica material / consulta status")
+// pra quando esse projeto irmão resolver a parte de MACsec-via-DPDK — a
+// integração entra aqui sem precisar redesenhar SMO/Scheduler/KMS.
+// NENHUM serviço nesta fase deve implementar ou chamar este contrato.
+syntax = "proto3";
+
+package pqcorc.macsecagent.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum LinkState {
+  LINK_STATE_UNSPECIFIED = 0;
+  LINK_STATE_DOWN = 1;
+  LINK_STATE_ESTABLISHED = 2;
+}
+
+service MacsecAgentService {
+  // Espelha IpsecAgentService.ApplyKeyMaterial — mesma semântica de troca
+  // de chave (CAK/CKN do MACsec em vez de PSK do IPsec), mesma ideia de
+  // key_id só pra rastreabilidade.
+  rpc ApplyKeyMaterial(ApplyKeyMaterialRequest) returns (ApplyKeyMaterialResponse);
+  rpc GetLinkStatus(GetLinkStatusRequest) returns (LinkStatus);
+}
+
+message ApplyKeyMaterialRequest {
+  string link_id = 1; // identifica o enlace O-RU<->O-DU (formato TBD pelo projeto irmão)
+  string key_id = 2;
+  bytes cak = 3; // Connectivity Association Key — equivalente MACsec do PSK
+}
+
+message ApplyKeyMaterialResponse {
+  bool success = 1;
+  string error_message = 2;
+  google.protobuf.Timestamp applied_at = 3;
+}
+
+message GetLinkStatusRequest {
+  string link_id = 1;
+}
+
+message LinkStatus {
+  string link_id = 1;
+  LinkState state = 2;
+  string current_key_id = 3;
+}

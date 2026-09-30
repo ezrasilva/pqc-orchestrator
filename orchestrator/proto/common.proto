@@ -1,0 +1,97 @@
+// Tipos compartilhados entre todos os serviços do orquestrador.
+// Ver docs/ARQUITETURA-ORQUESTRADOR.md pro contexto de cada campo.
+syntax = "proto3";
+
+package pqcorc.common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// NOTA: o mapeamento SliceType -> SST numérico NÃO está fixado aqui de
+// propósito (fica em config de cada componente, não no contrato de rede).
+// Pro registro: o núcleo Open5GS já implantado usa SST=1 -> eMBB, SST=2 ->
+// URLLC, SST=3 -> mIoT (ver 5gc/config/smf.yaml) — esse é o mapeamento
+// correto/autoritativo; uma versão anterior da arquitetura tinha SST=1 ->
+// URLLC por engano, já corrigido em docs/ARQUITETURA-ORQUESTRADOR.md.
+enum SliceType {
+  SLICE_TYPE_UNSPECIFIED = 0;
+  SLICE_TYPE_URLLC = 1;
+  SLICE_TYPE_EMBB = 2;
+  SLICE_TYPE_MIOT = 3;
+}
+
+// F1 agrupa F1-C/F1-U/E1 (midhaul, CU<->DU) — são protegidos pela mesma
+// conexão IPsec (f1-cu-du) nesta topologia, não faz sentido diferenciar no
+// contrato. N2N3 é o backhaul CU<->borda do 5GC (conexão n2n3-cu-edge).
+// FRONTHAUL existe só como valor reservado pro MacsecAgentService (ver
+// macsec_agent.proto) — não usado por nenhum serviço ativo nesta fase.
+enum InterfaceType {
+  INTERFACE_TYPE_UNSPECIFIED = 0;
+  INTERFACE_TYPE_F1 = 1;
+  INTERFACE_TYPE_N2N3 = 2;
+  INTERFACE_TYPE_FRONTHAUL = 3;
+}
+
+// Ciclo de vida completo de uma chave, conforme o KMS (seção 3 da
+// arquitetura): geração -> distribuição -> renovação -> revogação ->
+// quarentena -> zeroização. FAILED cobre qualquer falha ao longo do
+// caminho (ex: IPsec Agent não conseguiu aplicar o material).
+enum KeyState {
+  KEY_STATE_UNSPECIFIED = 0;
+  KEY_STATE_PENDING = 1;
+  KEY_STATE_ACTIVE = 2;
+  KEY_STATE_RENEWING = 3;
+  KEY_STATE_REVOKED = 4;
+  KEY_STATE_QUARANTINED = 5;
+  KEY_STATE_ZEROIZED = 6;
+  KEY_STATE_FAILED = 7;
+}
+
+// Material de chave híbrido gerado pelo KMS. `psk` é o segredo que o
+// IPsec Agent instala via VICI (load-shared) — nunca é logado nem incluído
+// em mensagens de auditoria (ver AuditEvent em smo.proto, que referencia
+// key_id, nunca o material em si).
+message KeyMaterial {
+  string key_id = 1;
+  SliceType slice = 2;
+  InterfaceType interface = 3;
+  bytes psk = 4;
+  string kem_algorithm = 5;       // ex: "ML-KEM-768", "ML-KEM-512"
+  bool has_quantum_component = 6; // true só pra URLLC (HKDF com canal simulado)
+  google.protobuf.Timestamp generated_at = 7;
+}
+
+// Snapshot do estado de uma chave, sem o material em si — é o que trafega
+// em respostas de consulta/auditoria (KeyMaterial só trafega na hora de
+// aplicar; depois disso, o resto do sistema só referencia key_id).
+message KeyStateInfo {
+  string key_id = 1;
+  SliceType slice = 2;
+  InterfaceType interface = 3;
+  KeyState state = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  string reason = 7; // motivo da última transição de estado
+}
+
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_ROTATE = 1;
+  TASK_TYPE_REVOKE = 2;
+}
+
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_NORMAL = 1;
+  TASK_PRIORITY_CRITICAL = 2;
+  TASK_PRIORITY_EMERGENCY = 3;
+}
+
+// As três políticas de escalonamento do plano de experimentação — seleção
+// é parâmetro de execução (SetSchedulingPolicy em scheduler.proto/smo.proto),
+// não recompilação.
+enum SchedulingPolicy {
+  SCHEDULING_POLICY_UNSPECIFIED = 0;
+  SCHEDULING_POLICY_RISK_AWARE = 1;
+  SCHEDULING_POLICY_WEIGHTED_EDF = 2;
+  SCHEDULING_POLICY_FIFO = 3;
+}

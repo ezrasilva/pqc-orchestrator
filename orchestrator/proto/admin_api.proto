@@ -1,0 +1,62 @@
+// Admin API — única fronteira externa do orquestrador, gRPC+mTLS. É o que
+// o kms_admin.py (ou outra CLI/ferramenta do pesquisador) chama. Por baixo,
+// cada RPC vira uma chamada ao SmoService correspondente — esta API não
+// tem lógica própria além de autenticação/atribuição de autoria (`actor`)
+// e validação de entrada.
+//
+// Contrato separado de smo.proto de propósito: a superfície pública pro
+// pesquisador deve poder evoluir (novos campos, deprecações) sem forçar
+// mudança no contrato interno SMO<->Scheduler/KMS/IPsec Agent, e vice-versa.
+syntax = "proto3";
+
+package pqcorc.adminapi.v1;
+
+import "common.proto";
+import "smo.proto";
+import "google/protobuf/empty.proto";
+
+service AdminApiService {
+  rpc ForceRotate(ForceRotateRequest) returns (pqcorc.smo.v1.ProcessTaskResult);
+  rpc RevokeKey(RevokeKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc QuarantineKey(QuarantineKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc ReleaseQuarantine(ReleaseQuarantineRequest) returns (pqcorc.common.v1.KeyStateInfo);
+
+  rpc GetSystemStatus(google.protobuf.Empty) returns (pqcorc.smo.v1.SystemStatus);
+  rpc SetSchedulingPolicy(SetSchedulingPolicyRequest) returns (google.protobuf.Empty);
+  rpc ListAuditLog(pqcorc.smo.v1.ListAuditLogRequest) returns (pqcorc.smo.v1.ListAuditLogResponse);
+}
+
+// `actor` identifica quem está pedindo (ex: identidade extraída do
+// certificado mTLS do cliente, ou preenchido pela própria implementação da
+// Admin API a partir do contexto de autenticação — não é um campo que o
+// cliente deveria poder forjar livremente; a validação disso é
+// responsabilidade da implementação, não do contrato).
+message ForceRotateRequest {
+  pqcorc.common.v1.SliceType slice = 1;
+  pqcorc.common.v1.InterfaceType interface = 2;
+  string reason = 3;
+  string actor = 4;
+}
+
+message RevokeKeyRequest {
+  string key_id = 1;
+  string reason = 2;
+  string actor = 3;
+}
+
+message QuarantineKeyRequest {
+  string key_id = 1;
+  string reason = 2;
+  string actor = 3;
+}
+
+message ReleaseQuarantineRequest {
+  string key_id = 1;
+  string reason = 2;
+  string actor = 3;
+}
+
+message SetSchedulingPolicyRequest {
+  pqcorc.common.v1.SchedulingPolicy policy = 1;
+  string actor = 2;
+}

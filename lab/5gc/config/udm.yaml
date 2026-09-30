@@ -1,0 +1,13 @@
+# UDM — sem chaves de home network configuradas: os assinantes provisionados pelo
+# WebUI usam SUCI em scheme "null" (protection scheme 0) por padrão, que não exige
+# as chaves Curve25519/SECP256R1 de deconcealment. Se depois você quiser exercitar
+# SUCI cifrado de verdade, adicione o bloco "hnPrivKey" aqui.
+
+udm:
+  sbi:
+    server:
+      - dev: eth0
+        port: 7777
+    client:
+      nrf:
+        - uri: http://nrf:7777

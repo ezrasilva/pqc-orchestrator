@@ -1,0 +1,26 @@
+# UPF — mesmo particionamento de subnets/DNN por fatia usado no smf.yaml.
+
+upf:
+  pfcp:
+    server:
+      - dev: eth0
+
+  gtpu:
+    server:
+      - dev: eth0   # N3, recebe tráfego de usuário do gNB
+
+  session:
+    - subnet: 10.45.0.0/24
+      gateway: 10.45.0.1
+      dnn: embb
+    - subnet: 10.45.1.0/24
+      gateway: 10.45.1.1
+      dnn: urllc
+    - subnet: 10.45.2.0/24
+      gateway: 10.45.2.1
+      dnn: miot
+
+  metrics:
+    server:
+      - dev: eth0
+        port: 9090

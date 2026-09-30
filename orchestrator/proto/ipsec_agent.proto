@@ -1,0 +1,85 @@
+// IPsec Agent — único componente que fala VICI/Netlink com o charon local.
+// Roda nativo dentro do cu-ns (não containerizado — ver decisão de
+// deployment na arquitetura). Gerencia as duas conexões desta fase:
+// f1-cu-du (CU<->DU, transport) e n2n3-cu-edge (CU<->5gc-edge-ns, tunnel).
+//
+// Este serviço é chamado exclusivamente pelo SMO. O cu-ns é sempre o
+// initiator (auto=start); du-ns e 5gc-edge-ns são responders passivos
+// (auto=add) e não têm — nem precisam ter — seu próprio agente.
+syntax = "proto3";
+
+package pqcorc.ipsecagent.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// As duas conexões IPsec que existem nesta fase — ver
+// lab/ipsec/ipsec-cu/ipsec.conf pros nomes reais. Usar enum em vez de
+// string solta evita erro de digitação e deixa explícito que só essas duas
+// são suportadas.
+enum ConnectionName {
+  CONNECTION_NAME_UNSPECIFIED = 0;
+  CONNECTION_NAME_F1_CU_DU = 1;      // conn f1-cu-du
+  CONNECTION_NAME_N2N3_CU_EDGE = 2;  // conn n2n3-cu-edge
+}
+
+enum ConnectionState {
+  CONNECTION_STATE_UNSPECIFIED = 0;
+  CONNECTION_STATE_DOWN = 1;
+  CONNECTION_STATE_CONNECTING = 2;
+  CONNECTION_STATE_ESTABLISHED = 3;
+}
+
+service IpsecAgentService {
+  // Instala `psk` como o novo segredo compartilhado da conexão (VICI
+  // load-shared) e dispara a reautenticação da IKE_SA (rekey). A SA antiga
+  // com o PSK anterior deixa de conseguir se reautenticar — é isso que
+  // implementa revogação na prática (ver arquitetura, "Mecanismo real de
+  // rotação"). key_id é só rastreabilidade (não é usado pela chamada VICI
+  // em si) — o Agent inclui esse id nos logs/eventos que ele emite.
+  rpc ApplyKeyMaterial(ApplyKeyMaterialRequest) returns (ApplyKeyMaterialResponse);
+
+  // Encerra a IKE_SA + CHILD_SAs de uma conexão imediatamente, sem
+  // reinstalar nada — usado pelo caminho de revogação/quarentena de
+  // emergência, quando a intenção é "derruba agora", não "troca a chave".
+  rpc TerminateConnection(TerminateConnectionRequest) returns (google.protobuf.Empty);
+
+  // Estado atual visto via VICI (list-sas) — usado tanto por consulta do
+  // SMO quanto por reconciliação no boot do orquestrador.
+  rpc GetConnectionStatus(GetConnectionStatusRequest) returns (ConnectionStatus);
+  rpc ListConnections(google.protobuf.Empty) returns (ListConnectionsResponse);
+}
+
+message ApplyKeyMaterialRequest {
+  ConnectionName connection = 1;
+  string key_id = 2;
+  bytes psk = 3;
+}
+
+message ApplyKeyMaterialResponse {
+  bool success = 1;
+  string error_message = 2; // vazio quando success=true
+  google.protobuf.Timestamp applied_at = 3;
+}
+
+message TerminateConnectionRequest {
+  ConnectionName connection = 1;
+  string reason = 2;
+}
+
+message GetConnectionStatusRequest {
+  ConnectionName connection = 1;
+}
+
+message ConnectionStatus {
+  ConnectionName connection = 1;
+  ConnectionState state = 2;
+  string local_id = 3;
+  string remote_id = 4;
+  google.protobuf.Timestamp established_since = 5; // ausente se state != ESTABLISHED
+  string current_key_id = 6; // último key_id aplicado com sucesso; vazio se nenhum ainda
+}
+
+message ListConnectionsResponse {
+  repeated ConnectionStatus connections = 1;
+}

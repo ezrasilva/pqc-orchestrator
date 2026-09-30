@@ -1,0 +1,5 @@
+nrf:
+  sbi:
+    server:
+      - dev: eth0
+        port: 7777

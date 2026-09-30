@@ -1,0 +1,6 @@
+grpcio>=1.66
+grpcio-tools>=1.66
+protobuf>=5.27
+liboqs-python>=0.16
+cryptography>=44
+pytest>=8

@@ -1,0 +1,59 @@
+# SMF — um DNN + subnet por fatia, igual à Tabela 3 do artigo do Murilo. O bloco
+# "info" é o que permite ao AMF, via NRF, descobrir qual SMF atende cada S-NSSAI/DNN.
+
+smf:
+  sbi:
+    server:
+      - dev: eth0
+        port: 7777
+    client:
+      nrf:
+        - uri: http://nrf:7777
+
+  pfcp:
+    server:
+      - dev: eth0   # N4, fala com o UPF
+    client:
+      upf:
+        - address: upf
+
+  gtpu:
+    server:
+      - dev: eth0
+
+  metrics:
+    server:
+      - dev: eth0
+        port: 9090
+
+  session:
+    - subnet: 10.45.0.0/24
+      dnn: embb
+      gateway: 10.45.0.1
+    - subnet: 10.45.1.0/24
+      dnn: urllc
+      gateway: 10.45.1.1
+    - subnet: 10.45.2.0/24
+      dnn: miot
+      gateway: 10.45.2.1
+
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4
+
+  mtu: 1400
+
+  info:
+    - s_nssai:
+        - sst: 1
+          sd: ffffff
+          dnn:
+            - embb
+        - sst: 2
+          sd: ffffff
+          dnn:
+            - urllc
+        - sst: 3
+          sd: ffffff
+          dnn:
+            - miot

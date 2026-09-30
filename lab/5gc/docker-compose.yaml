@@ -1,0 +1,126 @@
+# Open5GS — núcleo 5G para a máquina "5GC"
+#
+# Baseado no docker-compose oficial do Open5GS (imagens gradiant/open5gs), com os 10
+# NFs necessários pra um registro de UE completo (NRF, AMF, SMF, UPF, AUSF, UDM, UDR,
+# PCF, NSSF, BSF) e as 3 fatias eMBB/URLLC/mIoT da Tabela 3 do artigo do Murilo.
+#
+# Depois de "docker compose up -d", acesse o WebUI em http://localhost:9999 (via túnel
+# SSH) pra provisionar os assinantes de teste (um por fatia).
+
+services:
+  mongo:
+    image: mongo:6
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  webui:
+    image: gradiant/open5gs-webui:2.8.0
+    depends_on: [mongo]
+    environment:
+      - DB_URI=mongodb://mongo/open5gs
+      - NODE_ENV=production
+    ports:
+      - "9999:9999"
+    restart: unless-stopped
+
+  nrf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-nrfd
+    volumes:
+      - ./config/nrf.yaml:/opt/open5gs/etc/open5gs/nrf.yaml
+    restart: unless-stopped
+
+  ausf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-ausfd
+    depends_on: [nrf]
+    volumes:
+      - ./config/ausf.yaml:/opt/open5gs/etc/open5gs/ausf.yaml
+    restart: unless-stopped
+
+  udm:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-udmd
+    depends_on: [nrf]
+    volumes:
+      - ./config/udm.yaml:/opt/open5gs/etc/open5gs/udm.yaml
+    restart: unless-stopped
+
+  udr:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-udrd
+    depends_on: [nrf, mongo]
+    volumes:
+      - ./config/udr.yaml:/opt/open5gs/etc/open5gs/udr.yaml
+    restart: unless-stopped
+
+  pcf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-pcfd
+    depends_on: [nrf, mongo]
+    volumes:
+      - ./config/pcf.yaml:/opt/open5gs/etc/open5gs/pcf.yaml
+    restart: unless-stopped
+
+  nssf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-nssfd
+    depends_on: [nrf]
+    volumes:
+      - ./config/nssf.yaml:/opt/open5gs/etc/open5gs/nssf.yaml
+    restart: unless-stopped
+
+  bsf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-bsfd
+    depends_on: [nrf]
+    volumes:
+      - ./config/bsf.yaml:/opt/open5gs/etc/open5gs/bsf.yaml
+    restart: unless-stopped
+
+  amf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-amfd
+    depends_on: [nrf, ausf, udm]
+    volumes:
+      - ./config/amf.yaml:/opt/open5gs/etc/open5gs/amf.yaml
+    ports:
+      # N2 — SCTP, exposto pra receber conexão do gNB na máquina "RAN"
+      - "38412:38412/sctp"
+    networks:
+      - default
+      - core-net
+    restart: unless-stopped
+
+  smf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-smfd
+    depends_on: [nrf, pcf, udm]
+    volumes:
+      - ./config/smf.yaml:/opt/open5gs/etc/open5gs/smf.yaml
+    restart: unless-stopped
+
+  upf:
+    image: gradiant/open5gs:2.8.0
+    command: open5gs-upfd
+    user: "0:0"   # a imagem roda como uid 999 por padrão; TUNSETIFF exige root real
+    privileged: true   # sysctl -w net.ipv6.../disable_ipv6 no entrypoint exige isso além de NET_ADMIN
+    cap_add: [NET_ADMIN]
+    devices: ["/dev/net/tun"]
+    volumes:
+      - ./config/upf.yaml:/opt/open5gs/etc/open5gs/upf.yaml
+    ports:
+      # N3 — GTP-U, exposto pra receber tráfego de usuário do gNB via porta publicada
+      # no host (o UPF fica só na rede default: colocá-lo também na core-net deixa o
+      # container multi-homed e o Open5GS passa a anunciar 127.0.0.1 nos heartbeats
+      # PFCP em vez do IP real, o que o SMF rejeita)
+      - "2152:2152/udp"
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+
+networks:
+  core-net:
+    external: true

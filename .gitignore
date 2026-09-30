@@ -1,0 +1,16 @@
+# Python / orquestrador
+.venv/
+gen/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite3
+
+# Segredos reais de laboratório — nunca versionar. Templates .example
+# ficam no repo; os arquivos reais (com PSK/IMSI/key/opc de verdade) são
+# gerados localmente seguindo docs/RUNBOOK-OAI.md.
+lab/ipsec/*/ipsec.secrets
+lab/ran/ue.conf
+
+# Logs de execução do laboratório
+*.log

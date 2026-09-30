@@ -1,0 +1,119 @@
+// SMO — orquestrador central. Único componente que fala com Scheduler,
+// KMS e IPsec Agent ao mesmo tempo; não guarda lógica de política nem de
+// kernel, só coordena (ver docs/ARQUITETURA-ORQUESTRADOR.md seção 1 e o fluxo
+// principal). É chamado pela Admin API — nunca diretamente pelo
+// kms_admin.py (ver admin_api.proto).
+syntax = "proto3";
+
+package pqcorc.smo.v1;
+
+import "common.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service SmoService {
+  // Caminho principal (rotação agendada/por risco): normalmente disparado
+  // internamente pelo próprio SMO consumindo Scheduler.GetNextTask, não
+  // por uma chamada externa — exposto aqui só pra permitir inspeção/teste
+  // do laço de rotação sem esperar o agendamento natural.
+  rpc ProcessNextTask(google.protobuf.Empty) returns (ProcessTaskResult);
+
+  // Comandos administrativos (origem: Admin API). Cada um vira, por baixo,
+  // uma combinação de chamadas a KMS + IPsec Agent + Scheduler, registrada
+  // no audit log.
+  rpc ForceRotate(ForceRotateRequest) returns (ProcessTaskResult);
+  rpc RevokeKey(RevokeKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc QuarantineKey(QuarantineKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc ReleaseQuarantine(ReleaseQuarantineRequest) returns (pqcorc.common.v1.KeyStateInfo);
+
+  // Observabilidade agregada — status de tudo que o pesquisador precisa
+  // ver de uma vez (usado pela Admin API pra montar a resposta de status).
+  rpc GetSystemStatus(google.protobuf.Empty) returns (SystemStatus);
+  rpc SetSchedulingPolicy(SetSchedulingPolicyRequest) returns (google.protobuf.Empty);
+  rpc ListAuditLog(ListAuditLogRequest) returns (ListAuditLogResponse);
+}
+
+// Resultado de processar uma tarefa de rotação/revogação ponta a ponta —
+// corresponde aos passos 2-6 do fluxo principal na arquitetura.
+message ProcessTaskResult {
+  bool task_found = 1;   // false = fila estava vazia (só relevante em ProcessNextTask)
+  bool success = 2;
+  string task_id = 3;
+  string key_id = 4;
+  pqcorc.common.v1.SliceType slice = 5;
+  pqcorc.common.v1.InterfaceType interface = 6;
+  string error_message = 7; // vazio quando success=true
+}
+
+message ForceRotateRequest {
+  pqcorc.common.v1.SliceType slice = 1;
+  pqcorc.common.v1.InterfaceType interface = 2;
+  string reason = 3;
+  // Rotação forçada sempre entra na fila como EMERGENCY — não é um
+  // parâmetro exposto aqui de propósito, pra não permitir que uma chamada
+  // administrativa "forçada" seja despriorizada por engano.
+}
+
+message RevokeKeyRequest {
+  string key_id = 1;
+  string reason = 2;
+}
+
+message QuarantineKeyRequest {
+  string key_id = 1;
+  string reason = 2;
+}
+
+message ReleaseQuarantineRequest {
+  string key_id = 1;
+  string reason = 2;
+}
+
+message SetSchedulingPolicyRequest {
+  pqcorc.common.v1.SchedulingPolicy policy = 1;
+}
+
+// Snapshot agregado: uma entrada de tunnel por ConnectionName do IPsec
+// Agent (repetido aqui como string solta, não como enum do
+// ipsec_agent.proto, pra o SMO não precisar importar esse proto só por
+// causa do enum — ver TunnelSummary).
+message TunnelSummary {
+  string connection_name = 1; // "f1-cu-du" | "n2n3-cu-edge"
+  string state = 2;           // "DOWN" | "CONNECTING" | "ESTABLISHED"
+  string current_key_id = 3;
+}
+
+message SystemStatus {
+  repeated TunnelSummary tunnels = 1;
+  repeated pqcorc.common.v1.KeyStateInfo active_keys = 2;
+  int32 queue_depth = 3;
+  pqcorc.common.v1.SchedulingPolicy scheduling_policy = 4;
+  google.protobuf.Timestamp checked_at = 5;
+}
+
+message ListAuditLogRequest {
+  pqcorc.common.v1.SliceType slice = 1;     // opcional, UNSPECIFIED = não filtra
+  pqcorc.common.v1.InterfaceType interface = 2; // opcional
+  int32 limit = 3;
+  string page_token = 4;
+}
+
+// Evento de auditoria — nunca inclui o material de chave em si, só
+// key_id. `actor` distingue ações automáticas do sistema ("scheduler",
+// "smo") de ações administrativas ("admin:<identidade de quem chamou>").
+message AuditEvent {
+  string event_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string event_type = 3; // "rotate" | "revoke" | "quarantine" | "release" | "apply_failed" | ...
+  pqcorc.common.v1.SliceType slice = 4;
+  pqcorc.common.v1.InterfaceType interface = 5;
+  string key_id = 6;
+  string actor = 7;
+  string detail = 8;
+  bool success = 9;
+}
+
+message ListAuditLogResponse {
+  repeated AuditEvent entries = 1;
+  string next_page_token = 2;
+}

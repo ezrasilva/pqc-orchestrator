@@ -1,0 +1,24 @@
+# NSSF — como há um único NRF servindo todas as fatias, o "nsi" só mapeia cada
+# S-NSSAI de volta pro mesmo NRF.
+
+nssf:
+  sbi:
+    server:
+      - dev: eth0
+        port: 7777
+    client:
+      nrf:
+        - uri: http://nrf:7777
+      nsi:
+        - uri: http://nrf:7777
+          s_nssai:
+            sst: 1
+            sd: ffffff
+        - uri: http://nrf:7777
+          s_nssai:
+            sst: 2
+            sd: ffffff
+        - uri: http://nrf:7777
+          s_nssai:
+            sst: 3
+            sd: ffffff

@@ -1,0 +1,13 @@
+[Unit]
+Description=Recria a rede virtual do laboratorio PQC/O-RAN (netns, veth, core-net)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pqc-lab-network.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

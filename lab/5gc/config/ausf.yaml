@@ -1,0 +1,8 @@
+ausf:
+  sbi:
+    server:
+      - dev: eth0
+        port: 7777
+    client:
+      nrf:
+        - uri: http://nrf:7777

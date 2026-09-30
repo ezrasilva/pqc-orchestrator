@@ -1,0 +1,89 @@
+// KMS — ciclo de vida de chave híbrida PQC por fatia/interface.
+// Ver docs/ARQUITETURA-ORQUESTRADOR.md seção 3.
+syntax = "proto3";
+
+package pqcorc.kms.v1;
+
+import "common.proto";
+
+service KeyManagementService {
+  // Gera material híbrido novo (ML-KEM + HKDF, com componente quântico
+  // simulado só pra URLLC) e registra estado PENDING. Não aplica em
+  // nenhuma SA sozinho — quem chama isso é o SMO, que depois manda o
+  // material pro IPsec Agent.
+  rpc GenerateKeyMaterial(GenerateKeyMaterialRequest) returns (pqcorc.common.v1.KeyMaterial);
+
+  // Transições de estado explícitas — cada uma só é válida a partir de
+  // certos estados anteriores (validação é responsabilidade da
+  // implementação, não do contrato): PENDING->ACTIVE (Activate),
+  // ACTIVE->RENEWING (implícito ao gerar substituta), ACTIVE/RENEWING->
+  // REVOKED (Revoke), qualquer->QUARANTINED (Quarantine),
+  // QUARANTINED->ACTIVE (ReleaseQuarantine), REVOKED/QUARANTINED->ZEROIZED
+  // (Zeroize, final — apaga o material do armazenamento).
+  rpc ActivateKey(ActivateKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc RevokeKey(RevokeKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc QuarantineKey(QuarantineKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc ReleaseQuarantine(ReleaseQuarantineRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc ZeroizeKey(ZeroizeKeyRequest) returns (pqcorc.common.v1.KeyStateInfo);
+
+  // Consulta pontual (sem o material) e histórico auditável.
+  rpc GetKeyState(GetKeyStateRequest) returns (pqcorc.common.v1.KeyStateInfo);
+  rpc ListKeyHistory(ListKeyHistoryRequest) returns (ListKeyHistoryResponse);
+
+  // Chave atualmente ACTIVE pra uma fatia/interface — usado no boot do
+  // SMO pra reconciliar estado (o que está de pé agora?) sem depender de
+  // memória em processo.
+  rpc GetActiveKey(GetActiveKeyRequest) returns (pqcorc.common.v1.KeyMaterial);
+}
+
+message GenerateKeyMaterialRequest {
+  pqcorc.common.v1.SliceType slice = 1;
+  pqcorc.common.v1.InterfaceType interface = 2;
+  string reason = 3; // "scheduled" | "manual" | "emergency" | livre pra auditoria
+}
+
+message ActivateKeyRequest {
+  string key_id = 1;
+}
+
+message RevokeKeyRequest {
+  string key_id = 1;
+  string reason = 2;
+}
+
+message QuarantineKeyRequest {
+  string key_id = 1;
+  string reason = 2;
+}
+
+message ReleaseQuarantineRequest {
+  string key_id = 1;
+  string reason = 2;
+}
+
+message ZeroizeKeyRequest {
+  string key_id = 1;
+}
+
+message GetKeyStateRequest {
+  string key_id = 1;
+}
+
+message GetActiveKeyRequest {
+  pqcorc.common.v1.SliceType slice = 1;
+  pqcorc.common.v1.InterfaceType interface = 2;
+}
+
+message ListKeyHistoryRequest {
+  // Todos os filtros são opcionais; SLICE_TYPE_UNSPECIFIED/
+  // INTERFACE_TYPE_UNSPECIFIED significam "não filtrar por isso".
+  pqcorc.common.v1.SliceType slice = 1;
+  pqcorc.common.v1.InterfaceType interface = 2;
+  int32 limit = 3; // 0 = usa o default do servidor
+  string page_token = 4;
+}
+
+message ListKeyHistoryResponse {
+  repeated pqcorc.common.v1.KeyStateInfo entries = 1;
+  string next_page_token = 2; // vazio = não há mais páginas
+}

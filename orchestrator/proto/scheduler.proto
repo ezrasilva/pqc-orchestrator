@@ -1,0 +1,84 @@
+// Global Scheduler — fila priorizada de tarefas de rotação/revogação.
+// Ver docs/ARQUITETURA-ORQUESTRADOR.md seção 2 (fórmula de risco).
+syntax = "proto3";
+
+package pqcorc.scheduler.v1;
+
+import "common.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service SchedulerService {
+  // SMO enfileira uma tarefa (rotação agendada, ou disparada por risco/
+  // evento administrativo). O Scheduler calcula risk_score na hora de
+  // enfileirar (usando a fórmula da arquitetura) e o mantém atualizado via
+  // aging enquanto a tarefa espera.
+  rpc EnqueueTask(EnqueueTaskRequest) returns (Task);
+
+  // SMO chama isso quando está livre pra processar a próxima tarefa —
+  // retorna a de maior prioridade/risco segundo a política ativa, e a
+  // remove da fila. NotFound (via status gRPC) se a fila estiver vazia.
+  rpc GetNextTask(google.protobuf.Empty) returns (Task);
+
+  // Observabilidade/teste: olha a fila sem consumir nada.
+  rpc PeekQueue(PeekQueueRequest) returns (PeekQueueResponse);
+
+  // Cancela uma tarefa ainda não processada (ex: admin liberou a chave
+  // antes da rotação agendada rodar).
+  rpc CancelTask(CancelTaskRequest) returns (google.protobuf.Empty);
+
+  // Troca a estratégia de escalonamento em runtime — é o que os 4 cenários
+  // do plano de experimentação usam pra comparar risk-aware vs
+  // weighted-EDF vs FIFO sem precisar recompilar nada.
+  rpc SetPolicy(SetPolicyRequest) returns (google.protobuf.Empty);
+  rpc GetPolicy(google.protobuf.Empty) returns (GetPolicyResponse);
+}
+
+message Task {
+  string task_id = 1;
+  pqcorc.common.v1.SliceType slice = 2;
+  pqcorc.common.v1.InterfaceType interface = 3;
+  pqcorc.common.v1.TaskType task_type = 4;
+  pqcorc.common.v1.TaskPriority priority = 5;
+
+  // Componentes da fórmula de risco (ver arquitetura):
+  // risk = -slack/estimated_cost + slice_bonus + interface_bonus + aging
+  double slack_seconds = 6;
+  double estimated_cost_seconds = 7;
+  double risk_score = 8; // calculado pelo Scheduler, não pelo chamador
+
+  google.protobuf.Timestamp enqueued_at = 9;
+  google.protobuf.Timestamp deadline = 10; // opcional; ausente = sem prazo rígido
+  string reason = 11;
+}
+
+message EnqueueTaskRequest {
+  pqcorc.common.v1.SliceType slice = 1;
+  pqcorc.common.v1.InterfaceType interface = 2;
+  pqcorc.common.v1.TaskType task_type = 3;
+  pqcorc.common.v1.TaskPriority priority = 4;
+  double slack_seconds = 5;
+  double estimated_cost_seconds = 6;
+  google.protobuf.Timestamp deadline = 7;
+  string reason = 8;
+}
+
+message CancelTaskRequest {
+  string task_id = 1;
+}
+
+message PeekQueueRequest {
+  int32 limit = 1; // 0 = usa o default do servidor
+}
+
+message PeekQueueResponse {
+  repeated Task tasks = 1; // ordenados pela política ativa, sem consumir
+}
+
+message SetPolicyRequest {
+  pqcorc.common.v1.SchedulingPolicy policy = 1;
+}
+
+message GetPolicyResponse {
+  pqcorc.common.v1.SchedulingPolicy policy = 1;
+}

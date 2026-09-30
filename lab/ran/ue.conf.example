@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: LicenseRef-CSSL-1.0
+#
+# Template — troque imsi/key/opc pelos valores do assinante de teste que
+# você cadastrar no Open5GS (ver docs/RUNBOOK-OAI.md). O ue.conf real (com
+# segredos de verdade, mesmo que só de laboratório) não é versionado —
+# veja .gitignore.
+
+uicc0 = {
+imsi = "001010000000004";
+key = "00000000000000000000000000000000";
+opc= "00000000000000000000000000000000";
+pdu_sessions = ({ dnn = "embb"; nssai_sst = 1; nssai_sd = 0xffffff; });
+}
+
+rfsimulator = {
+  serveraddr = "10.99.0.2";
+  serverport = 4043;
+};

@@ -371,14 +371,15 @@ projeto.
 
 ## 8. Roteiro faseado de implementação
 
-- [x] **Fase 1 — Baseline (infraestrutura confirmada; falta só gerar o
-  tráfego `iperf3` de verdade)**: as **três** fatias simultâneas estão de
-  pé numa UE só (não duas — subiu direto pras três, já que o mecanismo é
-  o mesmo), cada uma com sua própria sessão PDU/TEID, conectividade
-  confirmada via ping nas três ao mesmo tempo sem derrubar os túneis IPsec
-  já ativos. Falta rodar os perfis `iperf3` da tabela da seção 2
-  propriamente (isso é só gerar carga, não validar mecanismo — a parte que
-  dava risco de não escalar pra 3 fatias já está resolvida). Duas coisas
+- [x] **Fase 1 — Baseline (concluída)**: as **três** fatias simultâneas
+  estão de pé numa UE só (não duas — subiu direto pras três, já que o
+  mecanismo é o mesmo), cada uma com sua própria sessão PDU/TEID. Os três
+  perfis `iperf3` da tabela da seção 2 rodados de verdade contra um
+  servidor na própria UPF (`10.45.0.1:5201`, já que é o único endereço
+  real — ver achado abaixo): eMBB TCP ~35 Mbit/s, URLLC UDP 2 Mbit/s
+  (128B/pacote, 0% perda, jitter ~0.7ms), mIoT UDP 10 kbit/s esparso (64B/
+  pacote, 0% perda) — nenhuma fatia derrubou os túneis IPsec já ativos
+  (`f1-cu-du`, `n2n3-cu-edge`) nem as outras duas sessões. Duas coisas
   descobertas no processo, corrigidas na config, não no código do OAI:
   - A UE do OAI **não envia `Requested NSSAI`** no Registration Request —
     o AMF só libera (`Allowed NSSAI`) as fatias com `default_indicator:

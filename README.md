@@ -55,10 +55,17 @@ cópia deste laboratório.
 
 Ver `orchestrator/README.md` pro estado detalhado. Resumo: contratos gRPC
 (item 1), KMS isolado e testável (item 2), IPsec Agent nativo mínimo
-(item 3) e Scheduler com fórmula de risco (item 4) prontos — o Scheduler
-já foi validado disparando rotação real no laboratório (ver estado do
-protótipo abaixo, Fase 5). SMO e Admin API (itens 5-6) ainda não
-implementados.
+(item 3), Scheduler com fórmula de risco (item 4) e SMO amarrando os
+quatro (item 5) prontos — validado de ponta a ponta contra o
+laboratório real (Scheduler → SMO → KMS → IPsec Agent → SA reestabelece
+com PSK e PPK novos). No caminho, corrigiu duas divergências reais entre
+o desenho original e a topologia de verdade do laboratório (ver
+`orchestrator/README.md` e `docs/ARQUITETURA-ORQUESTRADOR.md`): o IPsec
+Agent só conhecia 2 conexões (agora conhece as 5 reais), e o PSK
+combinado do KMS divergia do PPK real (RFC 8784) já validado na Fase 4
+(agora são campos separados). Admin API (item 6) avaliada e
+deliberadamente não implementada — ver justificativa no README do
+orquestrador.
 
 ## Estado do protótipo (SBRC 2027)
 

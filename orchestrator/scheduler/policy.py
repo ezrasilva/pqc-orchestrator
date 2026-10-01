@@ -12,15 +12,17 @@ EnqueueTaskRequest) — isso faz a urgência vir inteiramente de
 `slice_bonus`/`interface_bonus` são constantes de desempate, não
 recalculadas — os valores abaixo são a decisão de design desta
 implementação (a arquitetura só diz "favorece URLLC"/"diferencia F1 de
-N2N3 se a política pedir", sem fixar magnitude):
+N2/N3 se a política pedir", sem fixar magnitude):
 
 - slice_bonus: URLLC > eMBB > mIoT — reflete a tabela de perfis PQC
   (seção 5.1 do ARQUITETURA-PROTOTIPO-COMPLETA.md): URLLC é a única fatia
   com componente de canal quântico simulado (PPK) e o KEM mais caro
   (ML-KEM-768), então uma rotação atrasada nela é o pior cenário.
-- interface_bonus: N2N3 > F1 — o enlace N2/N3 atravessa mais saltos (CU
-  até a borda do 5GC) e carrega tráfego de usuário até o núcleo; F1 é
-  midhaul intra-gNB, superfície de exposição menor.
+- interface_bonus: N3 > N2 > F1 — N3 é a única interface realmente
+  diferenciada por fatia (carrega o dado de usuário até o núcleo); N2 é
+  controle, compartilhado entre todas as fatias, sem componente PQC
+  diferenciado; F1 é midhaul intra-gNB, superfície de exposição menor
+  ainda.
 
 `aging` cresce linearmente com o tempo na fila (`aging_rate` por segundo)
 — evita starvation de tarefas de baixo risco (ver comentário no
@@ -40,7 +42,8 @@ SLICE_BONUS: dict[SliceType, float] = {
 }
 
 INTERFACE_BONUS: dict[InterfaceType, float] = {
-    InterfaceType.N2N3: 0.5,
+    InterfaceType.N3: 0.5,
+    InterfaceType.N2: 0.2,
     InterfaceType.F1: 0.0,
     InterfaceType.FRONTHAUL: 0.0,  # reservado, ver kms/models.py
 }

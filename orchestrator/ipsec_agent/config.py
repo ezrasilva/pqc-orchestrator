@@ -45,8 +45,14 @@ class ConnectionConfig:
     responder_socket: str    # socket VICI do lado que só responde
     local_id: str            # identidade do initiator (ver ipsec.conf)
     remote_id: str           # identidade do responder
+    ppk_id: str | None = None  # só n3-urllc-cu-edge — ver kms/crypto.py
 
 
+# As três conexões N3 ganharam endereço externo próprio na Fase 4 do
+# protótipo (10.97.0.11/.12, .21/.22, .31/.32) — não compartilham mais
+# 10.97.0.1/10.97.0.2 com a N2, de propósito: conexões que compartilham
+# endereço externo sofrem downgrade silencioso de proposta (achado
+# confirmado nesta VM, ver ARQUITETURA-PROTOTIPO-COMPLETA.md seção 5.4).
 CONNECTIONS: dict[ConnectionName, ConnectionConfig] = {
     ConnectionName.F1_CU_DU: ConnectionConfig(
         conn_name="f1-cu-du",
@@ -55,11 +61,33 @@ CONNECTIONS: dict[ConnectionName, ConnectionConfig] = {
         local_id="10.99.0.1",
         remote_id="10.99.0.2",
     ),
-    ConnectionName.N2N3_CU_EDGE: ConnectionConfig(
-        conn_name="n2n3-cu-edge",
+    ConnectionName.N2_CU_EDGE: ConnectionConfig(
+        conn_name="n2-cu-edge",
         initiator_socket="/run/ipsec-cu-ns/charon.vici",
         responder_socket="/run/ipsec-5gc-edge-ns/charon.vici",
         local_id="10.97.0.1",
         remote_id="10.97.0.2",
+    ),
+    ConnectionName.N3_URLLC_CU_EDGE: ConnectionConfig(
+        conn_name="n3-urllc-cu-edge",
+        initiator_socket="/run/ipsec-cu-ns/charon.vici",
+        responder_socket="/run/ipsec-5gc-edge-ns/charon.vici",
+        local_id="10.97.0.11",
+        remote_id="10.97.0.12",
+        ppk_id="ppk-urllc-qkd",
+    ),
+    ConnectionName.N3_EMBB_CU_EDGE: ConnectionConfig(
+        conn_name="n3-embb-cu-edge",
+        initiator_socket="/run/ipsec-cu-ns/charon.vici",
+        responder_socket="/run/ipsec-5gc-edge-ns/charon.vici",
+        local_id="10.97.0.21",
+        remote_id="10.97.0.22",
+    ),
+    ConnectionName.N3_MIOT_CU_EDGE: ConnectionConfig(
+        conn_name="n3-miot-cu-edge",
+        initiator_socket="/run/ipsec-cu-ns/charon.vici",
+        responder_socket="/run/ipsec-5gc-edge-ns/charon.vici",
+        local_id="10.97.0.31",
+        remote_id="10.97.0.32",
     ),
 }

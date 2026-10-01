@@ -29,7 +29,7 @@ def test_update_state(store):
     store.insert(
         key_id="key-2",
         slice=SliceType.EMBB,
-        interface=InterfaceType.N2N3,
+        interface=InterfaceType.N3,
         kem_algorithm="ML-KEM-512",
         has_quantum_component=False,
         psk=b"\x01" * 32,
@@ -46,7 +46,7 @@ def test_wipe_secret_removes_psk_but_keeps_record(store):
     store.insert(
         key_id="key-3",
         slice=SliceType.MIOT,
-        interface=InterfaceType.N2N3,
+        interface=InterfaceType.N3,
         kem_algorithm="ML-KEM-512",
         has_quantum_component=False,
         psk=b"\x02" * 32,
@@ -102,7 +102,7 @@ def test_list_history_filters_by_slice_and_interface(store):
     store.insert(
         key_id="a2",
         slice=SliceType.EMBB,
-        interface=InterfaceType.N2N3,
+        interface=InterfaceType.N3,
         kem_algorithm="ML-KEM-512",
         has_quantum_component=False,
         psk=b"\x00",
@@ -113,8 +113,8 @@ def test_list_history_filters_by_slice_and_interface(store):
     urllc_only = store.list_history(slice=SliceType.URLLC)
     assert {e.key_id for e in urllc_only} == {"a1"}
 
-    n2n3_only = store.list_history(interface=InterfaceType.N2N3)
-    assert {e.key_id for e in n2n3_only} == {"a2"}
+    n3_only = store.list_history(interface=InterfaceType.N3)
+    assert {e.key_id for e in n3_only} == {"a2"}
 
     everything = store.list_history()
     assert {e.key_id for e in everything} == {"a1", "a2"}

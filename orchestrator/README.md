@@ -4,7 +4,72 @@ Implementação do orquestrador de chaves PQC por fatia descrito em
 `../docs/ARQUITETURA-ORQUESTRADOR.md` (leia esse documento primeiro — este README
 só situa o estado do código).
 
-## Estado atual: item 4 da ordem de construção (Scheduler com fórmula de risco)
+## Estado atual: item 5 da ordem de construção (SMO amarrando os quatro)
+
+`smo/` implementa o `SmoCore` — coordena KMS + Scheduler + IPsec Agent
+(`process_next_task`, `force_rotate`, `revoke_key`, `quarantine_key`,
+`release_quarantine`, `get_system_status`, `set_scheduling_policy`,
+`list_audit_log`), mesmo padrão isolado/testável dos outros três. Admin
+API (item 6) foi deliberadamente deixada de fora desta fase — ver
+decisão abaixo.
+
+**Duas divergências reais encontradas e resolvidas antes de poder ligar
+os quatro componentes** (não escondidas — mudam código já existente):
+
+1. **`ConnectionName` do IPsec Agent estava desatualizado.** Só
+   conhecia `f1-cu-du`/`n2n3-cu-edge` — mas desde a Fase 3/4 do
+   protótipo SBRC essa segunda conexão não existe mais (virou `n2-cu-
+   edge` + três `n3-<fatia>-cu-edge`, cada uma com endereço externo
+   próprio e perfil PQC próprio, ver `ARQUITETURA-PROTOTIPO-COMPLETA.md`
+   seção 5.4). Atualizado `ipsec_agent/config.py` pras cinco conexões
+   reais. `kms/models.py`'s `InterfaceType` também dividiu `N2N3` em
+   `N2`/`N3` pelo mesmo motivo — só `N3` é realmente diferenciada por
+   fatia.
+2. **O PSK combinado do KMS divergia do PPK real (RFC 8784) já validado
+   na Fase 4.** `kms/crypto.py` misturava o segredo ML-KEM com o
+   componente "quântico simulado" num único PSK via HKDF — mas a Fase 4
+   usa o mecanismo nativo de PPK do strongSwan, que exige um segredo
+   *separado* do PSK do IKE. Corrigido: `HybridMaterial`/`KeyMaterial`
+   ganharam um campo `ppk` (só preenchido pra URLLC), e o IPsec Agent
+   carrega os dois via VICI (`load_shared_psk` + `load_shared_ppk`,
+   tipos `IKE` e `PPK` respectivamente) antes do reauth. Confirmado
+   contra o laboratório real: `swanctl --list-sas` mostra `ppk: yes` na
+   SA da URLLC depois da rotação completa via SMO.
+
+Validado de ponta a ponta contra o laboratório real
+(`smo/tests/test_live.py`): Scheduler enfileira → SMO consulta → KMS
+gera material de verdade (ML-KEM real via liboqs) → IPsec Agent aplica
+via VICI real → SA reestabelece com o novo PSK (e PPK, pra URLLC) — as
+cinco conexões reais, não um fake.
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest smo/tests                           # núcleo isolado, com dublê de IPsec Agent, sem root
+sudo .venv/bin/python3 -m pytest smo/tests  # inclui os testes de integração real (precisa do laboratório de pé)
+```
+
+Estrutura:
+```
+smo/
+  models.py       # ProcessTaskResult, AuditEvent, SystemStatus
+  service.py       # SmoCore + resolve_connection((slice, interface) -> ConnectionName)
+  exceptions.py
+  tests/
+    fakes.py        # FakeIpsecAgent, pros testes isolados
+    test_service.py  # isolado, sem root
+    test_live.py      # integração real, requires_live_lab
+```
+
+Próximo item da ordem (6): Admin API — avaliado e **deliberadamente não
+implementado nesta fase**. Pro objetivo do artigo (SBRC 2027), o valor
+de pesquisa está na coordenação SMO/KMS/Scheduler/IPsec Agent com
+rotação por risco, não numa fronteira administrativa externa
+(gRPC+mTLS); `smo/tests/test_live.py` já demonstra o fluxo completo sem
+precisar dela. Fica documentada como lacuna conhecida, mesmo tratamento
+que o MACsec Agent já recebe.
+
+## Item 4 — Scheduler com fórmula de risco (concluído)
 
 `scheduler/` implementa a fila priorizada (`EMERGENCY > CRITICAL >
 NORMAL`, com a fórmula de risco `-slack/cost + slice_bonus +
@@ -44,18 +109,17 @@ scheduler/
   tests/
 ```
 
-Próximo item da ordem (5): SMO, amarrando KMS + Scheduler + IPsec Agent
-atrás de uma Admin API.
-
 ## Item 3 — IPsec Agent nativo mínimo (concluído)
 
 `ipsec_agent/` fala VICI direto com os `charon` do laboratório (ver
 `docs/RUNBOOK-OAI.md`) e implementa `apply_key_material` (carrega PSK
 via `load-shared` + `rekey` com `reauth=true`, exatamente o mecanismo
 descrito em `../docs/ARQUITETURA-ORQUESTRADOR.md`), `get_connection_status`
-e `terminate_connection`. Testado contra as duas conexões reais do
-laboratório (`f1-cu-du`, `n2n3-cu-edge`) — rotaciona o PSK de verdade e
-confirma reautenticação completa.
+e `terminate_connection`. Testado contra as cinco conexões reais do
+laboratório (`f1-cu-du`, `n2-cu-edge`, e as três `n3-<fatia>-cu-edge` —
+ver "Estado atual" acima pra quando isso deixou de ser duas conexões) —
+rotaciona o PSK (e o PPK, na URLLC) de verdade e confirma reautenticação
+completa.
 
 **Lacuna de arquitetura encontrada e documentada (não escondida)**: PSK é
 bilateral, mas a arquitetura só previa um Agent (no `cu-ns`, lado

@@ -66,8 +66,13 @@ class IpsecAgentCore:
             raise ValueError(f"conexão desconhecida: {connection}") from None
 
     def apply_key_material(
-        self, connection: ConnectionName, key_id: str, psk: bytes
+        self, connection: ConnectionName, key_id: str, psk: bytes, ppk: Optional[bytes] = None
     ) -> ApplyResult:
+        """`ppk` só se aplica a conexões com `ppk_id` configurado (hoje só
+        N3_URLLC_CU_EDGE, ver config.py) — ignorado silenciosamente nas
+        outras, mesmo que o chamador passe algo (o KMS já só gera ppk
+        pra URLLC, ver kms/crypto.py, então isso não deveria acontecer na
+        prática; não é motivo pra falhar a chamada toda)."""
         cfg = self._config(connection)
         owners = [cfg.local_id, cfg.remote_id]
 
@@ -83,6 +88,10 @@ class IpsecAgentCore:
                 # distribuída de verdade).
                 responder.load_shared_psk(key_id, psk, owners)
                 initiator.load_shared_psk(key_id, psk, owners)
+
+                if cfg.ppk_id and ppk:
+                    responder.load_shared_ppk(cfg.ppk_id, ppk)
+                    initiator.load_shared_ppk(cfg.ppk_id, ppk)
 
                 rekey_triggered_at = datetime.now(timezone.utc)
                 initiator.rekey(cfg.conn_name, reauth=True)

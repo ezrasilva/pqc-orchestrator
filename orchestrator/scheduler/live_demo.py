@@ -132,7 +132,7 @@ def enqueue_from_snapshots(core: SchedulerCore, snapshots: list[SaSnapshot]) -> 
         task = core.enqueue_task(
             EnqueueTaskRequest(
                 slice=snap.slice,
-                interface=InterfaceType.N2N3,
+                interface=InterfaceType.N3,
                 task_type=TaskType.ROTATE,
                 priority=TaskPriority.NORMAL,
                 slack_seconds=slack,

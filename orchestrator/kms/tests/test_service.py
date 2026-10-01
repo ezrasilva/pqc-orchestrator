@@ -13,17 +13,17 @@ def test_generate_starts_pending(core):
 
 
 def test_activate_then_appears_as_active_key(core):
-    material = core.generate(SliceType.EMBB, InterfaceType.N2N3)
+    material = core.generate(SliceType.EMBB, InterfaceType.N3)
     core.activate(material.key_id)
 
-    active = core.get_active_key(SliceType.EMBB, InterfaceType.N2N3)
+    active = core.get_active_key(SliceType.EMBB, InterfaceType.N3)
     assert active is not None
     assert active.key_id == material.key_id
     assert active.state is KeyState.ACTIVE
 
 
 def test_invalid_transition_rejected(core):
-    material = core.generate(SliceType.MIOT, InterfaceType.N2N3)
+    material = core.generate(SliceType.MIOT, InterfaceType.N3)
     # PENDING não pode ir direto pra QUARANTINED (tem que passar por ACTIVE)
     with pytest.raises(InvalidTransitionError):
         core.quarantine(material.key_id, "teste")
@@ -65,14 +65,14 @@ def test_quarantine_and_release(core):
 
 
 def test_failed_key_can_be_zeroized_without_revoke(core):
-    material = core.generate(SliceType.MIOT, InterfaceType.N2N3)
+    material = core.generate(SliceType.MIOT, InterfaceType.N3)
     core.mark_failed(material.key_id, "IPsec Agent recusou o material")
     core.zeroize(material.key_id)
     assert core.get_state(material.key_id).state is KeyState.ZEROIZED
 
 
 def test_zeroized_is_terminal(core):
-    material = core.generate(SliceType.MIOT, InterfaceType.N2N3)
+    material = core.generate(SliceType.MIOT, InterfaceType.N3)
     core.mark_failed(material.key_id, "teste")
     core.zeroize(material.key_id)
     with pytest.raises(InvalidTransitionError):

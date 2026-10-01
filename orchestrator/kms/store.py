@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS keys (
 
 CREATE TABLE IF NOT EXISTS key_secrets (
     key_id TEXT PRIMARY KEY REFERENCES keys(key_id),
-    psk    BLOB NOT NULL
+    psk    BLOB NOT NULL,
+    ppk    BLOB  -- NULL pra toda fatia exceto URLLC, ver kms/crypto.py
 );
 
 CREATE INDEX IF NOT EXISTS idx_keys_slice_interface_state
@@ -89,6 +90,7 @@ class KeyStore:
         psk: bytes,
         state: KeyState,
         reason: str,
+        ppk: Optional[bytes] = None,
     ) -> KeyStateInfo:
         now = utcnow().isoformat()
         with self._tx() as conn:
@@ -110,8 +112,8 @@ class KeyStore:
                 ),
             )
             conn.execute(
-                "INSERT INTO key_secrets (key_id, psk) VALUES (?, ?)",
-                (key_id, psk),
+                "INSERT INTO key_secrets (key_id, psk, ppk) VALUES (?, ?, ?)",
+                (key_id, psk, ppk),
             )
         return self.get(key_id)
 
@@ -132,6 +134,15 @@ class KeyStore:
         if row is None:
             raise KeyNotFoundError(key_id)
         return row["psk"]
+
+    def get_ppk(self, key_id: str) -> Optional[bytes]:
+        """None tanto pra fatia sem PPK quanto pra chave zeroizada/
+        inexistente — quem precisa distinguir "nunca teve" de "foi
+        apagado" usa get(key_id).state, igual get_psk()."""
+        row = self._conn.execute(
+            "SELECT ppk FROM key_secrets WHERE key_id = ?", (key_id,)
+        ).fetchone()
+        return row["ppk"] if row else None
 
     def update_state(self, key_id: str, new_state: KeyState, reason: str) -> KeyStateInfo:
         self.get(key_id)  # levanta KeyNotFoundError se não existir

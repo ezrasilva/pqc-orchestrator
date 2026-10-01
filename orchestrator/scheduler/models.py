@@ -22,8 +22,12 @@ class SliceType(enum.Enum):
 
 
 class InterfaceType(enum.Enum):
+    """N2 (controle) e N3 (dado de usuário, por fatia) são conexões
+    distintas desde a Fase 3/4 do protótipo — ver kms/models.py."""
+
     F1 = "F1"
-    N2N3 = "N2N3"
+    N2 = "N2"
+    N3 = "N3"
     FRONTHAUL = "FRONTHAUL"  # reservado, ver kms/models.py
 
 

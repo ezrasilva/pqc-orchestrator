@@ -12,6 +12,7 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Optional
 
 
 class SliceType(enum.Enum):
@@ -21,8 +22,15 @@ class SliceType(enum.Enum):
 
 
 class InterfaceType(enum.Enum):
+    """Desde a Fase 3/4 do protótipo SBRC, N2 (controle) e N3 (dado de
+    usuário, por fatia) são conexões IPsec distintas — N2N3 combinado não
+    existe mais no laboratório real (ver ipsec_agent/models.py). N2 não é
+    diferenciado por fatia (é controle, compartilhado); N3 é a única
+    interface onde SliceType realmente seleciona uma SA diferente."""
+
     F1 = "F1"
-    N2N3 = "N2N3"
+    N2 = "N2"
+    N3 = "N3"
     FRONTHAUL = "FRONTHAUL"  # reservado — nenhum código ativo usa isto ainda
 
 
@@ -63,8 +71,10 @@ def utcnow() -> datetime:
 
 @dataclass
 class KeyMaterial:
-    """Material completo, incluindo o segredo — só existe em memória entre
-    a geração e a entrega ao IPsec Agent; nunca é serializado em logs."""
+    """Material completo, incluindo o(s) segredo(s) — só existe em memória
+    entre a geração e a entrega ao IPsec Agent; nunca é serializado em
+    logs. `ppk` só é preenchido pra URLLC (ver kms/crypto.py pro porquê de
+    ser um campo separado do `psk`)."""
 
     key_id: str
     slice: SliceType
@@ -73,6 +83,7 @@ class KeyMaterial:
     kem_algorithm: str
     has_quantum_component: bool
     generated_at: datetime
+    ppk: Optional[bytes] = None
 
 
 @dataclass

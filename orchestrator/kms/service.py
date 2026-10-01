@@ -62,6 +62,7 @@ class KeyManagementCore:
                 kem_algorithm=material.kem_algorithm,
                 has_quantum_component=material.has_quantum_component,
                 psk=material.psk,
+                ppk=material.ppk,
                 state=KeyState.PENDING,
                 reason=reason,
             )
@@ -73,6 +74,7 @@ class KeyManagementCore:
             kem_algorithm=material.kem_algorithm,
             has_quantum_component=material.has_quantum_component,
             generated_at=utcnow(),
+            ppk=material.ppk,
         )
 
     def _transition(self, key_id: str, to_state: KeyState, reason: str) -> KeyStateInfo:
@@ -114,6 +116,10 @@ class KeyManagementCore:
         pro IPsec Agent) — não confundir com get_state, que nunca inclui
         o material."""
         return self._store.get_psk(key_id)
+
+    def get_ppk(self, key_id: str) -> Optional[bytes]:
+        """None pra toda fatia exceto URLLC — ver kms/crypto.py."""
+        return self._store.get_ppk(key_id)
 
     def get_active_key(
         self, slice: SliceType, interface: InterfaceType

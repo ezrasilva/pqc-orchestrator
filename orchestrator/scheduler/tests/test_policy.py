@@ -46,11 +46,11 @@ def test_slice_bonus_favors_urllc():
     assert compute_risk(urllc, now=now) > compute_risk(embb, now=now) > compute_risk(miot, now=now)
 
 
-def test_interface_bonus_favors_n2n3_over_f1():
-    n2n3 = _task(interface=InterfaceType.N2N3)
+def test_interface_bonus_favors_n3_over_f1():
+    n3_task = _task(interface=InterfaceType.N3)
     f1 = _task(interface=InterfaceType.F1)
     now = utcnow()
-    assert compute_risk(n2n3, now=now) > compute_risk(f1, now=now)
+    assert compute_risk(n3_task, now=now) > compute_risk(f1, now=now)
 
 
 def test_aging_increases_risk_score_over_time():

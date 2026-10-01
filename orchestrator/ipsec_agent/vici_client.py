@@ -44,6 +44,27 @@ class ViciConnection:
             }
         )
 
+    def load_shared_ppk(self, ppk_id: str, ppk: bytes) -> None:
+        """PPK (RFC 8784) — diferente do PSK do IKE, não leva `owners`
+        (endereço); é casado pelo `ppk_id` configurado na conexão
+        (`ppk_id =` no swanctl.conf), não por identidade de peer.
+        Testado contra o laboratório real carregando um PPK novo com o
+        mesmo `id` já usado pelo swanctl.conf (`ppk-urllc-qkd`) e
+        confirmando reauth bem-sucedido com `/PPK` ativo logo depois —
+        não confirmei a nível de código-fonte se isso substitui o valor
+        anterior no credential set do charon ou só adiciona um candidato
+        extra que também autentica; pra produção, vale essa checagem
+        antes de confiar que valores antigos de fato saem de circulação
+        (zeroização — mesma preocupação que o KMS já trata pro PSK)."""
+        session = self._session()
+        session.load_shared(
+            {
+                "id": ppk_id,
+                "type": "PPK",
+                "data": ppk,
+            }
+        )
+
     def rekey(self, conn_name: str, reauth: bool = True) -> None:
         """reauth=True refaz a autenticação de verdade (reusa o PSK que
         acabou de ser carregado) — um rekey sem reauth só rederiva chaves

@@ -133,9 +133,21 @@ Gera o material híbrido por fatia. Mapeamento corrigido pra bater com o
 Open5GS já implantado (`5gc/config/smf.yaml`) — a versão anterior deste
 documento tinha URLLC como SST 1 por engano; o SST real de cada fatia é
 outro, a política de qual fatia recebe o quê continua a mesma:
-- **URLLC (SST 2):** ML-KEM-768 + material de canal quântico simulado
-  (via HKDF)
+- **URLLC (SST 2):** ML-KEM-768 pro PSK + material de canal quântico
+  simulado como **PPK separado** (RFC 8784, aplicado via mecanismo nativo
+  do strongSwan — ver correção abaixo)
 - **eMBB (SST 1) / mIoT (SST 3):** ML-KEM-512, sem componente quântico
+
+**Correção (implementação do item 5, SMO amarrando os componentes)**: a
+primeira versão do KMS misturava o segredo ML-KEM com o componente
+quântico simulado num único PSK via HKDF. Isso divergia do que a Fase 4
+do protótipo SBRC validou contra o laboratório real
+(`ARQUITETURA-PROTOTIPO-COMPLETA.md` seção 5.4): lá, o PPK é aplicado via
+o mecanismo nativo do strongSwan (RFC 8784), que exige um segredo
+*separado* do PSK do IKE — confirmado via `swanctl --list-sas` mostrando
+`ppk: yes` só quando os dois são distintos. `HybridMaterial`/
+`KeyMaterial` agora têm um campo `ppk` à parte (só preenchido pra
+URLLC).
 
 Aplica as transições de estado: geração → distribuição → renovação →
 revogação → quarentena → zeroização. Persiste estado e histórico em SQLite
@@ -148,20 +160,33 @@ pro SMO chamar ("aplicar SA X com material Y", "rotacionar SA Z",
 fala com esse agente. Isso mantém o SMO/Scheduler/KMS portáveis (container,
 outra máquina, etc.) sem se importar com onde o netns realmente vive.
 
-Cobre os dois enlaces desta fase porque a CU concentra F1 (com a DU) e N2/N3
-(com a borda do 5GC) na mesma topologia — um único agente, duas conexões
-IPsec distintas geridas por ele:
+Cobre os enlaces desta fase porque a CU concentra F1 (com a DU) e N2/N3
+(com a borda do 5GC) na mesma topologia — um único agente, cinco conexões
+IPsec distintas geridas por ele (**atualizado** — a versão original desta
+seção descrevia só duas; ver correção abaixo):
 
 - `f1-cu-du` — CU↔DU, transport mode, direto entre `cu-ns` e `du-ns`.
-- `n2n3-cu-edge` — CU↔borda do 5GC, tunnel mode, terminando não na 5GC
-  diretamente, mas num terceiro netns (`5gc-edge-ns`) que atua como membro
-  real das redes Docker do Open5GS (sem NAT, via proxy-ARP pros aliases da
-  CU) — ver `RUNBOOK-OAI.md` pro motivo (NAT quebrava o checksum SCTP do
-  N2). O IPsec Agent não precisa saber desse detalhe de roteamento — só
-  fala com o `charon` local e a conexão `n2n3-cu-edge` — mas o nome e a
-  topologia real são esses, não `n2n3-ran-5gc`/enlace direto que aparecia
-  nos `.conf.example` originais (que assumiam duas máquinas físicas na
-  mesma LAN).
+- `n2-cu-edge` — CU↔borda do 5GC, controle (NGAP), não diferenciado por
+  fatia.
+- `n3-urllc-cu-edge` / `n3-embb-cu-edge` / `n3-miot-cu-edge` — CU↔borda do
+  5GC, dado de usuário (GTP-U), uma SA por fatia, cada uma com endereço
+  externo e perfil PQC próprios (ver Fase 4 do protótipo).
+
+Todas terminam não na 5GC diretamente, mas num terceiro netns
+(`5gc-edge-ns`) que atua como membro real das redes Docker do Open5GS
+(sem NAT, via proxy-ARP pros aliases da CU) — ver `RUNBOOK-OAI.md` pro
+motivo (NAT quebrava o checksum SCTP do N2). O IPsec Agent não precisa
+saber desse detalhe de roteamento — só fala com o `charon` local.
+
+**Correção (implementação do item 5)**: esta seção originalmente
+descrevia uma única conexão `n2n3-cu-edge` cobrindo controle e dado de
+usuário juntos. A Fase 3/4 do protótipo SBRC dividiu isso em `n2-cu-edge`
+(controle) + três `n3-<fatia>-cu-edge` (dado de usuário), por dois
+motivos confirmados contra o laboratório real: PPK (RFC 8784) não existe
+no parser clássico do `ipsec.conf`, e conexões que compartilham o mesmo
+endereço externo podem sofrer downgrade silencioso de proposta IKE
+(seção 5.4 do `ARQUITETURA-PROTOTIPO-COMPLETA.md`). O IPsec Agent e o
+SMO foram atualizados pra essa topologia real.
 
 **Papéis assimétricos (initiator vs responder):** só o `cu-ns` (onde este
 agente roda) tem `auto=start` nas duas conexões — ele é quem inicia e quem
@@ -212,9 +237,21 @@ Só a definição do contrato gRPC e o lugar no diagrama. Quando o projeto
 aqui — sem precisar redesenhar o resto do sistema.
 
 ### 6. Admin API
+
 gRPC+mTLS, igual ao protótipo anterior — é a interface que o `kms_admin.py`
 (ou uma CLI nova) usa pra comandos administrativos (revogar, colocar em
 quarentena, forçar rotação, liberar).
+
+**Decisão (implementação do item 5)**: avaliada e **deliberadamente não
+implementada nesta fase**. Pro objetivo do artigo (SBRC 2027), o valor
+de pesquisa está na coordenação SMO/KMS/Scheduler/IPsec Agent com
+rotação por risco, não numa fronteira administrativa externa — os
+mesmos comandos (`ForceRotate`, `RevokeKey`, etc.) já são exercitados
+diretamente no `SmoCore`, testado de ponta a ponta contra o laboratório
+real (`orchestrator/smo/tests/test_live.py`), sem precisar pagar o custo
+de certificados/autenticação/servidor gRPC a mais só pra isso. Fica como
+trabalho futuro se o sistema precisar rodar distribuído de verdade —
+mesmo tratamento que o MACsec Agent já recebe.
 
 ## Fluxo — rotação de chave (caminho principal)
 

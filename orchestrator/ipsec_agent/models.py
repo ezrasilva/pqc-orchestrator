@@ -12,8 +12,19 @@ from typing import Optional
 
 
 class ConnectionName(enum.Enum):
+    """Desde a Fase 3/4 do protótipo SBRC (ver
+    docs/ARQUITETURA-PROTOTIPO-COMPLETA.md seção 5), a antiga
+    N2N3_CU_EDGE não existe mais como uma conexão só — virou N2_CU_EDGE
+    (controle, não diferenciado por fatia) e três N3_<fatia>_CU_EDGE
+    (dado de usuário, uma por fatia, cada uma com perfil PQC próprio e a
+    URLLC com PPK real). Atualizado aqui pra bater com o laboratório de
+    verdade, não com o desenho original de 2 conexões."""
+
     F1_CU_DU = "f1-cu-du"
-    N2N3_CU_EDGE = "n2n3-cu-edge"
+    N2_CU_EDGE = "n2-cu-edge"
+    N3_URLLC_CU_EDGE = "n3-urllc-cu-edge"
+    N3_EMBB_CU_EDGE = "n3-embb-cu-edge"
+    N3_MIOT_CU_EDGE = "n3-miot-cu-edge"
 
 
 class ConnectionState(enum.Enum):

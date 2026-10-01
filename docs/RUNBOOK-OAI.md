@@ -128,6 +128,18 @@ Isso é uma camada OPCIONAL por cima do RAN — o RAN funciona sem ela (passos
 1-3 acima não dependem disso), mas pra medir rotação de chave via IPsec
 (o objetivo do laboratório) ela precisa estar de pé.
 
+**Pré-requisito de PQC (opcional, só pro protótipo SBRC):** o strongSwan
+desta VM foi recompilado a partir do pacote-fonte do Ubuntu (mesma versão
+6.0.4, patches de segurança mantidos) com `--enable-ml`, e os pacotes
+ficaram em `apt-mark hold` pra não serem revertidos por um `apt upgrade`.
+Isso **não é necessário** pro RAN nem pro IPsec "normal" (F1/N2N3 com PSK)
+descritos nesta seção — só importa se for configurar as conexões PQC do
+`ARQUITETURA-PROTOTIPO-COMPLETA.md`. Achado no processo: o plugin
+`openssl` já embutido ganha ML-KEM sozinho com a libssl desta VM (3.5.5),
+então o compile nem era estritamente obrigatório — ficou como provedor
+nativo redundante. Confirme com `swanctl --list-algs | grep -A1 '^ke:'`
+(procure `ML_KEM_768` na lista) antes de assumir que falta alguma coisa.
+
 **Pré-requisito de rede:** o `setup-network.sh` do passo 0 já monta o
 `5gc-edge-ns` — um netns extra que atua como "borda do 5GC": entra como
 membro real das redes Docker `core-net` e `default` (sem NAT), e expõe pra

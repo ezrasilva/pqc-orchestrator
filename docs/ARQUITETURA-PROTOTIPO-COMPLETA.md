@@ -294,23 +294,41 @@ cu-edge` correspondente está ativa (`swanctl --initiate --child n3-
 quando a fatia exigir (`ppk_id`/segredo carregado via
 `swanctl --load-shared` ou `ipsec.secrets`).
 
-### 5.3 Pré-requisito de versão e disponibilidade real nesta VM
+### 5.3 Pré-requisito de versão e disponibilidade real nesta VM (resolvido)
 
 strongSwan **6.0.0+** pra RFC 9370/ML-KEM (via plugin `botan`, `wolfssl`,
 `openssl`/AWS-LC, ou o novo plugin `ml`); PPK (RFC 8784) já existe desde a
 5.7.0.
 
-**Já conferido nesta VM**: `strongswan 6.0.4` está instalado (satisfaz o
-`6.0.0+`). **Mas nenhum plugin com ML-KEM está presente** —
-`libstrongswan-standard-plugins`/`libcharon-extra-plugins` do Ubuntu
-26.04 não trazem `ml`, `wolfssl`, `botan` nem `awslc`. Isso **não** é só
-"instalar um pacote": nenhum desses plugins está empacotado pro Ubuntu
-desta VM — vai ser preciso compilar o strongSwan a partir do código-fonte
-com um desses backends habilitado (`--enable-wolfssl`/`--enable-botan`/
-`--enable-ml`, dependendo de qual der menos trabalho de dependências) antes
-de qualquer coisa de ML-KEM funcionar. Trate isso como o primeiro item de
-trabalho da Fase 4, não como um detalhe de ambiente — é bloqueante e não
-estava no roteiro original.
+**Checagem inicial (incompleta) vs. o que de fato está disponível**: a
+primeira verificação nesta VM olhou só os `.so` de plugin instalados
+(`libstrongswan-standard-plugins`/`libcharon-extra-plugins` do Ubuntu
+26.04 não trazem `ml`, `wolfssl`, `botan` nem `awslc` pré-compilados) e
+concluiu, erradamente, que ML-KEM estava bloqueado. **Não estava**: o
+plugin `openssl` (esse sim já vinha instalado) ganha suporte a ML-KEM
+automaticamente quando ligado a uma libssl recente o bastante — e esta VM
+já tem **OpenSSL 3.5.5**, que inclui ML-KEM nativamente. Confirmado com
+
+```bash
+swanctl --list-algs | grep -A1 '^ke:'
+#   ML_KEM_512[openssl]
+#   ML_KEM_768[openssl]
+#   ML_KEM_1024[openssl]
+```
+
+**mesmo antes** de compilar nada — o `[openssl]` ali já diz de onde vem.
+Ou seja: **nenhum compile era estritamente necessário** pra desbloquear a
+Fase 4 nesta VM. Mesmo assim, compilamos o strongSwan 6.0.4 a partir do
+pacote-fonte do Ubuntu (mesma versão, patches de segurança da Ubuntu
+incluídos) com `--enable-ml` adicionado, instalando via `.deb` reconstruído
+(não `make install` cru, pra manter o pacote gerenciável pelo `dpkg`) — o
+plugin nativo `ml` fica como segundo provedor de ML-KEM, independente da
+versão do OpenSSL, útil se este laboratório algum dia rodar numa máquina
+com libssl mais antiga. Os pacotes foram marcados com `apt-mark hold` pra
+um `apt upgrade` não substituir esse build por engano. Nenhuma mudança foi
+necessária nos túneis já ativos (`f1-cu-du`, `n2n3-cu-edge` continuam com
+o mesmo `ike=`/`esp=` de sempre — PQC só entra quando as três conexões
+`n3-<fatia>-cu-edge` da seção 5.1 forem configuradas de fato, na Fase 4).
 
 ## 6. Fluxo de execução passo a passo (visão consolidada)
 
@@ -398,10 +416,12 @@ projeto.
 - CU-CP e CU-UP rodam no **mesmo processo** nesta VM (não há E1 de rede
   de verdade pra proteger hoje) — só importa se o protótipo quiser
   estender a diferenciação por fatia pro E1 também.
-- strongSwan 6.0.4 já está instalado e satisfaz a versão mínima, mas
-  **nenhum plugin com ML-KEM vem empacotado no Ubuntu desta VM** —
-  compilar strongSwan com `wolfssl`/`botan`/`ml` do zero é prerequisito
-  bloqueante da Fase 4, não um detalhe de ambiente.
+- ~~strongSwan sem plugin ML-KEM, bloqueante pra Fase 4~~ — **resolvido,
+  e nem era bem assim**: o plugin `openssl` já instalado ganha ML-KEM
+  sozinho com a libssl 3.5.5 desta VM (confirmado via `swanctl
+  --list-algs`), sem precisar compilar nada. Compilamos o strongSwan com
+  `--enable-ml` mesmo assim (ver 5.3), como provedor nativo adicional —
+  não é mais um bloqueio de jeito nenhum, nos dois caminhos.
 - Decida explicitamente o comportamento do Módulo 3 pra pacote com TEID
   ainda não classificado (fallback inseguro vs. bloqueio) — isso é
   decisão de design, vale estar no texto do artigo, não só no código.

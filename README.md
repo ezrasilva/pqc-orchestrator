@@ -8,11 +8,13 @@ Leia nessa ordem:
 1. [`docs/PLANO-IMPLEMENTACAO-OAI.md`](docs/PLANO-IMPLEMENTACAO-OAI.md) — como o laboratório RAN+5GC foi montado (OAI no lugar do srsRAN/OCUDU original).
 2. [`docs/RUNBOOK-OAI.md`](docs/RUNBOOK-OAI.md) — como subir tudo de novo do zero (Open5GS, DU/CU/UE, os dois túneis IPsec), incluindo o troubleshooting dos bugs reais encontrados no caminho.
 3. [`docs/ARQUITETURA-ORQUESTRADOR.md`](docs/ARQUITETURA-ORQUESTRADOR.md) — a arquitetura do orquestrador em si (SMO, Scheduler, KMS, IPsec Agent, Admin API) e as decisões de design já fechadas.
+4. [`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](docs/ARQUITETURA-PROTOTIPO-COMPLETA.md) — protótipo de nó único (sniffer PFCP + eBPF + XFRM/strongSwan) visando SBRC 2027; concretiza, num escopo menor, as mesmas decisões do documento acima.
+5. [`docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md`](docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md) — detalhamento do sniffer PFCP do protótipo acima, com os achados de uma captura real já validada nesta VM.
 
 ## Estrutura
 
 ```
-docs/            Os três documentos acima.
+docs/            Os cinco documentos acima.
 orchestrator/     Código do orquestrador (contratos gRPC + KMS implementados;
                    Scheduler/IPsec Agent/SMO/Admin API ainda não).
 lab/              Configs e scripts do laboratório OAI+Open5GS+IPsec que os
@@ -27,7 +29,7 @@ lab/              Configs e scripts do laboratório OAI+Open5GS+IPsec que os
 
 ## Sobre os caminhos nos documentos
 
-Os três documentos em `docs/` foram escritos descrevendo a VM de laboratório
+Os documentos em `docs/` foram escritos descrevendo a VM de laboratório
 original — eles referenciam caminhos absolutos como `~/openairinterface5g`,
 `~/oai-lab-conf`, `/usr/local/bin/pqc-lab-network.sh`. Esses caminhos
 continuam corretos *naquela VM*; não foram reescritos pra apontar pra dentro

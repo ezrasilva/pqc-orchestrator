@@ -5,6 +5,12 @@ risco, ciclo de vida de chave, separação por fatia), mas repensado pra rodar
 no ambiente real que você acabou de montar (OAI + Open5GS + netns), e sem
 compromisso com a estrutura de pastas/código do repositório antigo.
 
+**Ver também**: `ARQUITETURA-PROTOTIPO-COMPLETA.md` descreve um protótipo
+de nó único (4 módulos: sniffer PFCP, classificador eBPF, XFRM+strongSwan)
+que concretiza, num escopo menor e voltado a uma submissão (SBRC 2027), as
+mesmas decisões de design daqui — o "Agente de Segurança" daquele
+documento é a versão inicial do IPsec Agent descrito abaixo.
+
 ## Escopo desta fase
 
 Ativo: rotação/revogação de chaves híbridas PQC(+QKD simulado) protegendo

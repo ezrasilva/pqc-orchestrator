@@ -1,7 +1,7 @@
 """Tipos de domínio do KMS.
 
 Deliberadamente independentes dos stubs gerados a partir de kms.proto —
-o item 2 da ordem de construção (ver docs/ARQUITETURA-ORQUESTRADOR.md) pede o
+o item 2 da ordem de construção (ver ../docs/ARQUITETURA-ORQUESTRADOR.md) pede o
 KMS "isolado e testável... sem nenhuma dependência de rede real ainda". A
 tradução pra/de mensagens protobuf (SliceType etc.) fica pra quando o
 servidor gRPC for ligado por cima disso (item 5, SMO amarrando os quatro).

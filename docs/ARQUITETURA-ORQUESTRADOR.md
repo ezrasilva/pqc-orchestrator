@@ -186,6 +186,26 @@ identidade mais forte que PSK compartilhado), mas não é o caminho desta
 fase — reconfigurar `authby` pros dois enlaces e montar uma mini-CA é
 trabalho adicional sem ganho imediato pro que o experimento mede agora.
 
+**Lacuna encontrada na implementação (item 3) e como foi contornada por
+ora:** PSK é segredo bilateral — os dois lados de uma conexão precisam do
+mesmo material pra reautenticação funcionar, mas esta seção só descreve
+**um** agente, no `cu-ns`. Quem aplica o material no lado responder
+(`du-ns`, `5gc-edge-ns`)? Nesta fase de VM única, o `ipsec_agent` que
+implementamos contorna isso tendo acesso direto de filesystem aos sockets
+VICI dos dois lados de cada conexão (todos os três netns moram na mesma
+máquina) — ver `ipsec_agent/config.py` no repositório pra justificativa
+completa. Isso **não se sustenta** quando DU e a borda do 5GC forem
+máquinas físicas separadas (a topologia real da RNP): o Agent do `cu-ns`
+não vai enxergar o socket VICI de uma máquina remota. Duas saídas
+possíveis, nenhuma implementada ainda — decidir antes de migrar esse
+código pra fora de uma VM única:
+1. Um componente espelho, mais simples que o IPsec Agent completo, rodando
+   no lado responder real — só carrega o material que o Agent do `cu-ns`
+   manda por uma chamada de rede, sem precisar saber de política/rotação.
+2. Um backend de segredos compartilhado (Vault, ou mais simples um arquivo
+   sincronizado) que os dois lados leem — mais simples de montar, perde a
+   auditoria centralizada que o VICI dá hoje.
+
 ### 5. MACsec Agent (interface reservada, não implementada)
 Só a definição do contrato gRPC e o lugar no diagrama. Quando o projeto
 `macsec_fronthaul` resolver a parte de MACsec-via-DPDK, a integração entra

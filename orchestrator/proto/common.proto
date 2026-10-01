@@ -1,5 +1,5 @@
 // Tipos compartilhados entre todos os serviços do orquestrador.
-// Ver docs/ARQUITETURA-ORQUESTRADOR.md pro contexto de cada campo.
+// Ver ../docs/ARQUITETURA-ORQUESTRADOR.md pro contexto de cada campo.
 syntax = "proto3";
 
 package pqcorc.common.v1;
@@ -11,7 +11,7 @@ import "google/protobuf/timestamp.proto";
 // Pro registro: o núcleo Open5GS já implantado usa SST=1 -> eMBB, SST=2 ->
 // URLLC, SST=3 -> mIoT (ver 5gc/config/smf.yaml) — esse é o mapeamento
 // correto/autoritativo; uma versão anterior da arquitetura tinha SST=1 ->
-// URLLC por engano, já corrigido em docs/ARQUITETURA-ORQUESTRADOR.md.
+// URLLC por engano, já corrigido em ../docs/ARQUITETURA-ORQUESTRADOR.md.
 enum SliceType {
   SLICE_TYPE_UNSPECIFIED = 0;
   SLICE_TYPE_URLLC = 1;

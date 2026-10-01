@@ -1,6 +1,6 @@
 // SMO — orquestrador central. Único componente que fala com Scheduler,
 // KMS e IPsec Agent ao mesmo tempo; não guarda lógica de política nem de
-// kernel, só coordena (ver docs/ARQUITETURA-ORQUESTRADOR.md seção 1 e o fluxo
+// kernel, só coordena (ver ../docs/ARQUITETURA-ORQUESTRADOR.md seção 1 e o fluxo
 // principal). É chamado pela Admin API — nunca diretamente pelo
 // kms_admin.py (ver admin_api.proto).
 syntax = "proto3";

@@ -1,10 +1,45 @@
 # pqc-orchestrator
 
 Implementação do orquestrador de chaves PQC por fatia descrito em
-[`../docs/ARQUITETURA-ORQUESTRADOR.md`](../docs/ARQUITETURA-ORQUESTRADOR.md)
-(leia esse documento primeiro — este README só situa o estado do código).
+`../docs/ARQUITETURA-ORQUESTRADOR.md` (leia esse documento primeiro — este README
+só situa o estado do código).
 
-## Estado atual: item 2 da ordem de construção (KMS isolado e testável)
+## Estado atual: item 3 da ordem de construção (IPsec Agent nativo mínimo)
+
+`ipsec_agent/` fala VICI direto com os `charon` do laboratório (ver
+`docs/RUNBOOK-OAI.md`) e implementa `apply_key_material` (carrega PSK
+via `load-shared` + `rekey` com `reauth=true`, exatamente o mecanismo
+descrito em `../docs/ARQUITETURA-ORQUESTRADOR.md`), `get_connection_status`
+e `terminate_connection`. Testado contra as duas conexões reais do
+laboratório (`f1-cu-du`, `n2n3-cu-edge`) — rotaciona o PSK de verdade e
+confirma reautenticação completa.
+
+**Lacuna de arquitetura encontrada e documentada (não escondida)**: PSK é
+bilateral, mas a arquitetura só previa um Agent (no `cu-ns`, lado
+initiator). Nesta fase de VM única isso não é problema — o Agent tem
+acesso direto aos sockets VICI dos dois lados (ver `ipsec_agent/config.py`
+pro porquê e pras duas saídas possíveis quando isso for pra uma
+implantação distribuída de verdade).
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo .venv/bin/python3 -m pytest   # precisa de root (socket VICI é root:root)
+```
+
+Estrutura:
+```
+ipsec_agent/
+  models.py        # ConnectionName, ConnectionState (independente do .proto)
+  config.py         # registro das duas conexões + a lacuna arquitetural acima
+  vici_client.py    # wrapper fino sobre a lib `vici`, schema conferido contra o C do strongSwan
+  agent.py          # IpsecAgentCore — a lógica em si
+  tests/            # integração contra o charon real do laboratório (pula sem root/sem o lab de pé)
+```
+
+Próximo item da ordem (4): Scheduler com a fórmula de risco.
+
+## Item 2 — KMS isolado e testável (concluído)
 
 `kms/` implementa o ciclo de vida de chave (geração híbrida ML-KEM+HKDF,
 transições de estado, persistência SQLite) sem nenhuma dependência de rede
@@ -70,9 +105,8 @@ O mapeamento `SliceType -> SST` numérico **não está fixado no `.proto`** de
 propósito (fica em config de cada componente, não no contrato de rede) —
 ver comentário em `common.proto`. O valor autoritativo é o do núcleo
 Open5GS já implantado: `SST=1 → eMBB, SST=2 → URLLC, SST=3 → mIoT`
-(`../lab/5gc/config/smf.yaml`). A arquitetura tinha esse mapeamento errado
-numa versão anterior (SST=1 → URLLC) — já corrigido em
-[`../docs/ARQUITETURA-ORQUESTRADOR.md`](../docs/ARQUITETURA-ORQUESTRADOR.md),
-a política de qual fatia recebe ML-KEM-768
+(`5gc/config/smf.yaml`). A arquitetura tinha esse mapeamento errado numa
+versão anterior (SST=1 → URLLC) — já corrigido em
+`../docs/ARQUITETURA-ORQUESTRADOR.md`, a política de qual fatia recebe ML-KEM-768
 + componente quântico vs. ML-KEM-512 continua a mesma (URLLC é quem recebe
 o híbrido mais forte, só o número do SST que estava trocado).

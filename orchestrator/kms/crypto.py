@@ -1,5 +1,5 @@
 """Geração do material híbrido PQC(+QKD simulado) — ver
-docs/ARQUITETURA-ORQUESTRADOR.md seção 3.
+../docs/ARQUITETURA-ORQUESTRADOR.md seção 3.
 
 Por fatia:
 - URLLC: ML-KEM-768 + componente "quântico" simulado, combinados via HKDF.

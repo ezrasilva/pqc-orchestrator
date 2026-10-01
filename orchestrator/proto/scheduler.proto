@@ -1,5 +1,5 @@
 // Global Scheduler — fila priorizada de tarefas de rotação/revogação.
-// Ver docs/ARQUITETURA-ORQUESTRADOR.md seção 2 (fórmula de risco).
+// Ver ../docs/ARQUITETURA-ORQUESTRADOR.md seção 2 (fórmula de risco).
 syntax = "proto3";
 
 package pqcorc.scheduler.v1;

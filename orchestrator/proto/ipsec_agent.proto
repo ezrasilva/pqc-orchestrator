@@ -14,7 +14,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 // As duas conexões IPsec que existem nesta fase — ver
-// lab/ipsec/ipsec-cu/ipsec.conf pros nomes reais. Usar enum em vez de
+// lab/ipsec-cu/ipsec.conf pros nomes reais. Usar enum em vez de
 // string solta evita erro de digitação e deixa explícito que só essas duas
 // são suportadas.
 enum ConnectionName {

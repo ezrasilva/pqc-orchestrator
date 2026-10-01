@@ -4,3 +4,4 @@ protobuf>=5.27
 liboqs-python>=0.16
 cryptography>=44
 pytest>=8
+vici>=6

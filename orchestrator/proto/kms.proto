@@ -1,5 +1,5 @@
 // KMS — ciclo de vida de chave híbrida PQC por fatia/interface.
-// Ver docs/ARQUITETURA-ORQUESTRADOR.md seção 3.
+// Ver ../docs/ARQUITETURA-ORQUESTRADOR.md seção 3.
 syntax = "proto3";
 
 package pqcorc.kms.v1;

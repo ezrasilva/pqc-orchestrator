@@ -2,7 +2,7 @@
 //
 // MACsec no fronthaul (O-RU<->O-DU) está fora de escopo porque esse
 // tráfego passa por DPDK, incompatível com um agente baseado em
-// kernel/Netlink (ver docs/ARQUITETURA-ORQUESTRADOR.md, seção "Escopo desta
+// kernel/Netlink (ver ../docs/ARQUITETURA-ORQUESTRADOR.md, seção "Escopo desta
 // fase"). É trabalho do projeto irmão `macsec_fronthaul`.
 //
 // Este arquivo existe só pra reservar o formato do contrato, espelhando

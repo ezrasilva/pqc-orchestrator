@@ -61,6 +61,12 @@ implementados.
 ## Estado do protótipo (SBRC 2027)
 
 Ver `prototype/README.md` pro estado detalhado. Resumo: sniffer PFCP
-(Módulo 2) implementado e validado (replay de captura real + captura ao
-vivo); classificador eBPF/TC (Módulo 3) ainda não implementado. Módulo 4
-(Agente de Segurança) reaproveita `orchestrator/ipsec_agent/`.
+(Módulo 2) e classificador eBPF/TC (Módulo 3) implementados e validados
+(replay de captura real + captura ao vivo / tráfego real do laboratório).
+**Achado crítico em aberto**: a marca que o Módulo 3 define via TC
+egress não influencia a seleção de SA do XFRM pra tráfego gerado
+localmente pela CU — confirmado via tcpdump e contador iptables, ver
+`prototype/ebpf_classifier/README.md`. Precisa de uma correção de
+topologia (salto de encaminhamento extra) antes do Módulo 4 poder
+consumir o mark como a arquitetura original descreve. Módulo 4 (Agente
+de Segurança) reaproveita `orchestrator/ipsec_agent/`.

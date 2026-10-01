@@ -139,8 +139,10 @@ por causa de como o N3 já está roteado hoje).
    captura real nesta VM**, inclusive num pacote com flag de extensão
    ligada, que não muda o offset porque a extensão vem depois do TEID,
    não antes).
-4. Consulta um BPF Hash Map (`map_teid_to_mark`, chave = TEID, valor =
-   mark) — populado e atualizado pelo Módulo 2.
+4. Consulta um BPF Hash Map (`teid_to_mark` — nome encurtado de
+   `map_teid_to_mark` porque o kernel trunca nomes de map BPF em 15
+   bytes, chave = TEID, valor = mark) — populado e atualizado pelo
+   Módulo 2.
 5. Se encontrar, `skb->mark = valor` (via `bpf_skb_set_mark` ou
    equivalente no gancho TC).
 6. Se não encontrar (TEID novo, ainda não processado pelo Módulo 2),
@@ -157,6 +159,50 @@ latência disso se mostrar um problema real.
 **Comunicação com Módulo 4**: nenhuma direta — o Módulo 3 só marca o
 pacote; quem decide o que fazer com a marca é o XFRM (Módulo 4), não o
 eBPF.
+
+### 4.1 Status (implementado e testado; achado crítico aberto)
+
+O classificador em si está **implementado, compilado e validado** — 5
+testes determinísticos (GTP-U sintético via scapy, veth descartável) e
+validação manual contra tráfego real do laboratório (populado com o TEID
+real de uma sessão eMBB, confirmado via `bpftool map dump` que o
+contador `matched` bate exatamente com a contagem de pings enviados).
+Detalhes em `prototype/ebpf_classifier/README.md`. Também corrigiu, no
+caminho, um bug real: o nome do map `map_teid_to_mark` (16 bytes) era
+truncado pelo kernel pro limite de 15 bytes, fazendo o loader nunca
+encontrar o map pelo nome — renomeado pra `teid_to_mark`.
+
+**Achado crítico, ainda não resolvido**: testando contra o laboratório
+real, confirmei que marcar via TC egress **não funciona** pra influenciar
+a escolha de SA do XFRM, no caso específico de tráfego gerado localmente
+pelo processo da CU (o socket GTP-U do OAI) — que é exatamente o caso do
+Módulo 4. Dois testes independentes confirmaram isso:
+
+1. `tcpdump` em `veth-cu-n2` (interface de saída real do N3 da CU) com o
+   túnel IPsec ativo nunca mostra GTP-U em claro de saída, só ESP — o
+   XFRM já cifrou como parte da decisão de rota, antes de qualquer TC
+   egress daquela interface rodar.
+2. Um contador `iptables -t mangle -A FORWARD` pro mesmo mark nunca
+   incrementou, mesmo com o eBPF confirmando `matched` crescendo — porque
+   `FORWARD`/`POSTROUTING` do netfilter rodam antes do TC egress, não
+   depois.
+
+Ou seja: pra tráfego gerado localmente, TC egress na mesma interface que
+o IPsec protege é tarde demais no pipeline do kernel pra influenciar
+qual SA cifra o pacote. Isso **não invalida** o classificador (ele lê o
+TEID certo e marca certo, confirmado com tráfego real) — é uma limitação
+de topologia: onde o gancho TC está acoplado, não o que ele faz.
+
+**Caminho de correção proposto (não implementado)**: inserir um salto de
+encaminhamento adicional antes do enlace protegido por IPsec — um netns
+intermediário onde o socket GTP-U da CU de fato faz bind, com o
+classificador TC no egress desse netns. Dali o pacote marcado é
+encaminhado (não gerado localmente) pro `cu-ns`, onde a marca sobrevive
+até a decisão de rota+XFRM — o mesmo padrão, já comprovado nesta VM, que
+o `5gc-edge-ns` usa do lado do núcleo (ver seção 5.0 abaixo). Exige
+reestruturar a topologia de rede da CU, não é só "mais um módulo" — fica
+como pré-requisito explícito antes do Módulo 4 poder consumir o mark do
+Módulo 3 como descrito aqui.
 
 ## 5. Módulo 4 — Gerenciador de chaves e cifragem IPsec (XFRM + strongSwan)
 
@@ -391,7 +437,8 @@ projeto.
     IP, não endereços reais bindados na UPF. Testar conectividade de uma
     fatia que não seja `embb` pingando o "gateway" dela dá timeout; o
     teste certo é pingar `10.45.0.1` (o endereço real), de qualquer fatia.
-- [ ] **Fase 2 — Classificação (Módulo 2 pronto; Módulo 3 ainda não)**:
+- [x] **Fase 2 — Classificação (Módulo 2 e Módulo 3 implementados e
+  testados; integração Módulo 3→4 com achado crítico em aberto)**:
   `pfcp_sniffer/` implementado e validado — tanto via replay de uma
   captura real salva (três sessões simultâneas, 6 testes automatizados)
   quanto ao vivo contra a bridge Docker real durante um restart de UE de
@@ -403,8 +450,17 @@ projeto.
   valores diferentes — a correlação certa usa o IE F-SEID); e um FAR
   aponta pra `CP-function`, não pro enlace N3, então extrair o primeiro
   Outer Header Creation sem checar a interface pega o TEID/IP errado.
-  Ver `prototype/README.md` pros detalhes. Falta o classificador eBPF/TC
-  (Módulo 3) e confirmar via `bpftool map dump`.
+  Ver `prototype/README.md` pros detalhes. O classificador eBPF/TC
+  (Módulo 3) também está implementado, compilado e validado — tanto por
+  5 testes determinísticos quanto contra tráfego real, confirmado via
+  `bpftool map dump` —, mas **o passo de integração com o Módulo 4 tem
+  um achado crítico ainda não resolvido**: TC egress na interface do N3
+  não consegue influenciar a seleção de SA do XFRM pra tráfego gerado
+  localmente pela CU (confirmado via tcpdump e contador iptables — ver
+  seção 4.1 acima e `prototype/ebpf_classifier/README.md`). Esse achado
+  precisa ser endereçado (provavelmente via um salto de encaminhamento
+  extra, não implementado ainda) antes da Fase 3 poder usar o mark do
+  Módulo 3 de verdade.
 - [ ] **Fase 3 — Cifragem manual**: Módulo 4 com SAs criadas **à mão**
   (chave fixa, sem PQC/QKD ainda) pra validar só a seleção por mark —
   usando as três conexões `n3-<fatia>-cu-edge` da seção 5.1, mas com

@@ -65,8 +65,12 @@ Ver `prototype/README.md` pro estado detalhado. Resumo: sniffer PFCP
 (replay de captura real + captura ao vivo / tráfego real do laboratório).
 Encontrei e resolvi um achado crítico na integração Módulo 3→4: a marca
 definida via TC egress não influencia a seleção de SA do XFRM pra
-tráfego gerado localmente pela CU (confirmado via tcpdump e contador
-iptables) — a correção (marcar via `iptables -t mangle -A OUTPUT`, que
-dispara `ip_route_me_harder()` e reavalia a SA) foi validada contra SAs
-reais do strongSwan, ver `prototype/ebpf_classifier/README.md`. Módulo 4
-(Agente de Segurança) reaproveita `orchestrator/ipsec_agent/`.
+tráfego gerado localmente pela CU — a correção (marcar via `iptables -t
+mangle -A OUTPUT`, que dispara `ip_route_me_harder()` e reavalia a SA)
+foi validada contra SAs reais do strongSwan. **Fase 3 (cifragem manual,
+Módulo 4) concluída**: três SAs N3 por fatia, diferenciadas só por mark,
+validadas com tráfego real do laboratório — `ip -s xfrm state` confirmou
+cada fatia indo exclusivamente pra sua própria SA, zero cruzamento. Ver
+`prototype/ebpf_classifier/README.md` e
+`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md` (seção 5) pros detalhes. Fase 4
+(hibridização PQC+QKD de verdade) é o próximo passo.

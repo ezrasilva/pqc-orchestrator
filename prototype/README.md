@@ -58,8 +58,19 @@ CU — a correção (marcar via `iptables -t mangle -A OUTPUT`, que dispara
 reais do strongSwan, diferenciadas só por mark, com tráfego GTP-U real
 indo pra SA certa conforme o TEID (detalhes e números no README do
 módulo). O Módulo 4 (Agente de Segurança) reaproveita
-`../orchestrator/ipsec_agent/` quase sem mudança, e já pode contar com
-esse mecanismo de seleção por mark pra implementar a Fase 3.
+`../orchestrator/ipsec_agent/` quase sem mudança.
+
+**Fase 3 (cifragem manual) concluída e validada contra o laboratório
+real**: a antiga conexão `n2n3-cu-edge` foi dividida em `n2-cu-edge`
+(controle) e três `n3-<fatia>-cu-edge` (dado de usuário, diferenciadas
+só por mark, cifra fixa — sem PQC ainda, isso é Fase 4). Capturei os
+TEIDs reais das três sessões PDU via o sniffer PFCP ao vivo, apliquei o
+mark certo por `iptables -t mangle -A OUTPUT`
+(`lab/ipsec/apply-n3-slice-marks.sh`) e gerei tráfego real por fatia —
+`ip -s xfrm state` confirmou as três SAs com tráfego exclusivamente na
+SA certa, zero cruzamento. Detalhes em
+[`../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md#5-módulo-4--gerenciador-de-chaves-e-cifragem-ipsec-xfrm--strongswan)
+(seção 5, Fase 3).
 
 ## Dois bugs reais encontrados e corrigidos aqui (não no rascunho do roteiro)
 

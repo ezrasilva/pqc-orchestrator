@@ -159,10 +159,22 @@ imprime o `ipsec status` visto do lado da CU ao final; espera-se:
 
 ```
 Security Associations (2 up, 0 connecting):
+  n2-cu-edge[...]: ESTABLISHED ..., 10.97.0.1[10.97.0.1]...10.97.0.2[10.97.0.2]
+  n2-cu-edge{...}:  INSTALLED, TUNNEL, ... 10.98.0.98/32 === 10.98.0.0/24
     f1-cu-du[...]: ESTABLISHED ..., 10.99.0.1[10.99.0.1]...10.99.0.2[10.99.0.2]
     f1-cu-du{...}:  INSTALLED, TRANSPORT, ...
-n2n3-cu-edge[...]: ESTABLISHED ..., 10.97.0.1[10.97.0.1]...10.97.0.2[10.97.0.2]
-n2n3-cu-edge{...}:  INSTALLED, TUNNEL, ... TS 10.98.0.98/32 172.18.0.99/32 === 10.98.0.0/24 172.18.0.0/16
+```
+
+Desde a Fase 3 do protótipo SBRC (ver `ARQUITETURA-PROTOTIPO-COMPLETA.md`
+seção 5), o enlace N3 (GTP-U, dado de usuário) não sobe mais junto com o
+N2 — foi dividido em três conexões `n3-<fatia>-cu-edge` (`auto=add`,
+porque o gatilho de subir cada uma é a fatia aparecer, não o boot do
+sistema). Pra subir as três manualmente:
+```bash
+CU_CHARON_PID=$(sudo ip netns pids cu-ns | while read -r p; do [ "$(ps -p "$p" -o comm=)" = charon ] && echo "$p" && break; done)
+sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" ipsec up n3-urllc-cu-edge
+sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" ipsec up n3-embb-cu-edge
+sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" ipsec up n3-miot-cu-edge
 ```
 
 **Ordem importa:** suba o IPsec **depois** da rede (passo 0) e **antes** ou
@@ -177,6 +189,22 @@ Pra reiniciar do zero (ex: depois de editar `ipsec.conf`):
 ```bash
 sudo bash ~/oai-lab-conf/stop-all-ipsec.sh
 sudo bash ~/oai-lab-conf/start-all-ipsec.sh
+```
+
+**Importante**: `stop-all-ipsec.sh` mata o processo `charon` com `kill
+-9`, mas isso **não limpa** o `xfrm state`/`xfrm policy` que o kernel já
+tinha instalado — SAs antigas continuam roteando tráfego de verdade
+mesmo com o charon morto, e competem com as políticas que a instância
+nova for instalar (encontrado na prática: reconfigurar `n2n3-cu-edge`
+pras três conexões `n3-<fatia>-cu-edge` da Fase 3 deixou um SPI antigo
+sem mark ainda roteando tráfego real do N3 depois do restart). Se for
+mudar a topologia das conexões (não só girar PSK), limpe explicitamente
+antes de subir de novo:
+```bash
+sudo ip netns exec cu-ns ip xfrm policy flush
+sudo ip netns exec cu-ns ip xfrm state flush
+sudo ip netns exec 5gc-edge-ns ip xfrm policy flush
+sudo ip netns exec 5gc-edge-ns ip xfrm state flush
 ```
 
 Confirmar que o tráfego realmente está criptografado (não só que a SA subiu):

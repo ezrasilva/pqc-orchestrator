@@ -479,13 +479,29 @@ projeto.
   o TEID). Detalhes e números em seção 4.1 acima e
   `prototype/ebpf_classifier/README.md`. A Fase 3 já pode contar com
   esse mecanismo pra seleção de SA por fatia.
-- [ ] **Fase 3 — Cifragem manual**: Módulo 4 com SAs criadas **à mão**
-  (chave fixa, sem PQC/QKD ainda) pra validar só a seleção por mark —
-  usando as três conexões `n3-<fatia>-cu-edge` da seção 5.1, mas com
-  `ike=aes256-sha256-modp2048`/`esp=aes256-sha256` fixos em vez dos
-  perfis PQC. Critério de saída: `ip xfrm state`/`swanctl --list-sas`
-  mostram três SAs distintas realmente sendo usadas, uma por fatia,
-  confirmado via contadores de pacotes por SA (`ip -s xfrm state`).
+- [x] **Fase 3 — Cifragem manual**: feita e validada contra o laboratório
+  real. A antiga `n2n3-cu-edge` foi dividida em `n2-cu-edge` (controle,
+  perfil único) e três `n3-<fatia>-cu-edge` (dado de usuário, uma por
+  fatia, diferenciadas só por `mark_in`/`mark_out`), com
+  `ike=aes256-sha256-modp2048`/`esp=aes256-sha256` fixos (sem PQC ainda —
+  isso é Fase 4). Capturei os TEIDs reais das três sessões PDU ativas
+  (eMBB/URLLC/mIoT) via o sniffer PFCP ao vivo (Módulo 2) durante um
+  restart de UE de verdade, apliquei `iptables -t mangle -A OUTPUT`
+  mapeando cada TEID real pro mark certo (script
+  `lab/ipsec/apply-n3-slice-marks.sh`), e gerei tráfego real por fatia
+  (ping pelas três interfaces `oaitun_ue1*` da UE). Resultado: `ip -s
+  xfrm state` mostrou as três SAs com tráfego **exclusivamente** na SA
+  certa (mark 0x10/URLLC: 5 pacotes: mark 0x20/eMBB: 3 pacotes; mark
+  0x30/mIoT: 7 pacotes), zero pacotes na SA errada em qualquer uma —
+  confirma de ponta a ponta que a classificação por TEID (Módulo 2/3) e
+  a seleção de SA por mark (Módulo 4, via `mangle OUTPUT`) funcionam
+  juntas contra o laboratório real, não só em teste isolado. Achado
+  operacional (não um bug, mas vale registrar): matar o charon com
+  `kill -9` não limpa o `xfrm state`/`policy` instalado no kernel — um
+  restart de config exige `ip xfrm state flush`/`ip xfrm policy flush`
+  explícito no netns antes de subir a instância nova, senão a SA antiga
+  continua roteando tráfego não marcado e compete com as políticas
+  novas.
 - [ ] **Fase 4 — Hibridização PQC+QKD**: primeiro compilar strongSwan com
   um backend PQC (ver 5.3 — não está disponível via `apt` nesta VM), só
   depois automatizar liboqs+PPK e aplicar os perfis da tabela da seção

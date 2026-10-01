@@ -4,12 +4,21 @@
 # você cadastrar no Open5GS (ver docs/RUNBOOK-OAI.md). O ue.conf real (com
 # segredos de verdade, mesmo que só de laboratório) não é versionado —
 # veja .gitignore.
+#
+# As três sessões PDU (uma por fatia) exigem que o assinante no Mongo
+# tenha as três fatias marcadas como default_indicator:true — ver
+# RUNBOOK-OAI.md, troubleshooting ("mismatch for allowed NSSAI"), porque
+# a UE do OAI não implementa Requested NSSAI no Registration Request.
 
 uicc0 = {
 imsi = "001010000000004";
 key = "00000000000000000000000000000000";
 opc= "00000000000000000000000000000000";
-pdu_sessions = ({ dnn = "embb"; nssai_sst = 1; nssai_sd = 0xffffff; });
+pdu_sessions = (
+  { dnn = "embb"; nssai_sst = 1; nssai_sd = 0xffffff; },
+  { dnn = "urllc"; nssai_sst = 2; nssai_sd = 0xffffff; },
+  { dnn = "miot"; nssai_sst = 3; nssai_sd = 0xffffff; }
+);
 }
 
 rfsimulator = {

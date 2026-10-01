@@ -371,9 +371,25 @@ projeto.
 
 ## 8. Roteiro faseado de implementação
 
-- [ ] **Fase 1 — Baseline**: Módulo 1 de pé, duas fatias simultâneas
-  trafegando sem IPsec. Critério de saída: `iperf3` funcionando nas duas
-  fatias ao mesmo tempo, tráfego visível via `tcpdump` na interface N3.
+- [x] **Fase 1 — Baseline (infraestrutura confirmada; falta só gerar o
+  tráfego `iperf3` de verdade)**: as **três** fatias simultâneas estão de
+  pé numa UE só (não duas — subiu direto pras três, já que o mecanismo é
+  o mesmo), cada uma com sua própria sessão PDU/TEID, conectividade
+  confirmada via ping nas três ao mesmo tempo sem derrubar os túneis IPsec
+  já ativos. Falta rodar os perfis `iperf3` da tabela da seção 2
+  propriamente (isso é só gerar carga, não validar mecanismo — a parte que
+  dava risco de não escalar pra 3 fatias já está resolvida). Duas coisas
+  descobertas no processo, corrigidas na config, não no código do OAI:
+  - A UE do OAI **não envia `Requested NSSAI`** no Registration Request —
+    o AMF só libera (`Allowed NSSAI`) as fatias com `default_indicator:
+    true` na assinatura. Corrigido marcando as três fatias do assinante de
+    teste (`001010000000004`) como default — ver `RUNBOOK-OAI.md`.
+  - A UPF usa **uma única interface** `ogstun` (`10.45.0.1/16`) pras três
+    sub-redes, não uma por fatia — os "gateways" por DNN no `smf.yaml`
+    (`10.45.1.1`, `10.45.2.1`) são só contabilidade da SMF pra alocação de
+    IP, não endereços reais bindados na UPF. Testar conectividade de uma
+    fatia que não seja `embb` pingando o "gateway" dela dá timeout; o
+    teste certo é pingar `10.45.0.1` (o endereço real), de qualquer fatia.
 - [ ] **Fase 2 — Classificação**: Módulos 2 e 3 juntos. Critério de
   saída: os dois checklists de validação do
   `ROTEIRO-MODULO2-SNIFFER-PFCP.md` (o de PFCP/TEID já está feito), mais

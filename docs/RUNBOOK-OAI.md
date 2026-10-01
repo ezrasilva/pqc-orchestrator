@@ -209,7 +209,7 @@ idempotente e o systemd cuida dela no próximo boot.
 | Docker compose do 5GC | `~/pqc-oran-local-lab/5gc/docker-compose.yaml` |
 | Config da AMF (N2) | `~/pqc-oran-local-lab/5gc/config/amf.yaml` |
 | Config do UPF (N3) | `~/pqc-oran-local-lab/5gc/config/upf.yaml` |
-| Assinante de teste da UE | IMSI `001010000000004`, fatia `embb` (sst=1, sd=ffffff) — cadastrado no Mongo do Open5GS, credenciais em `~/oai-lab-conf/ue.conf` |
+| Assinante de teste da UE | IMSI `001010000000004`, as três fatias (embb/urllc/miot, sst=1/2/3, sd=ffffff, todas com `default_indicator: true`) — cadastrado no Mongo do Open5GS, credenciais em `~/oai-lab-conf/ue.conf` |
 | Configs IPsec, um por lado (cu-ns = initiator, du-ns/edge-ns = responders passivos) | `~/oai-lab-conf/{ipsec-cu,ipsec-du,ipsec-edge}/{ipsec.conf,ipsec.secrets}` |
 | Scripts de subida/parada do IPsec | `~/oai-lab-conf/{start-all-ipsec.sh,stop-all-ipsec.sh,start-ipsec-side.sh}` |
 | Templates originais de IPsec (referência) | `~/pqc-oran-local-lab/security/{ipsec-f1.conf.example,ipsec-n2n3.conf.example,README-integration.md}` |
@@ -299,3 +299,48 @@ refused!!! [Removed] Number of gNBs is now 0`). A CU não percebe sozinha
 que a AMF esqueceu dela. Reinicie a CU (`sudo pkill -9 -f "nr-softmodem -O
 .../cu.conf"` e suba de novo) pra forçar um NG Setup do zero — depois disso
 o registro da UE volta a funcionar normalmente.
+
+**Processo antigo de DU/CU/UE não morre com `pkill -f` (o padrão de
+comando bate, mas o processo continua rodando):** já aconteceu várias
+vezes nesta VM — `pkill -9 -f "<padrão>"` às vezes simplesmente não mata o
+processo mesmo com o padrão correto (não é erro de digitação, é algo do
+ambiente/shell). Sempre confirme com `ps aux | grep <config>.conf` depois
+de um `pkill` antes de subir uma instância nova — se o processo antigo
+ainda estiver lá, mata por PID explícito (`sudo kill -9 <pid>`). Subir uma
+instância nova sem matar a antiga causa erro de porta/socket já em uso
+(ex: `Assertion (gtpInst > 0) failed!` na DU) ou, pior, duas instâncias
+competindo pelo mesmo rádio simulado.
+
+**UE pede PDU session de uma fatia além da `embb` e recebe "mismatch for
+allowed NSSAI" (fatia nunca chega a ser requisitada de verdade):**
+A UE do OAI (`nr-uesoftmodem`) **não implementa `Requested NSSAI`** no
+Registration Request (IE opcional do 5G NAS) — sem isso, o AMF só libera
+(`Allowed NSSAI`) as fatias marcadas como `default_indicator: true` na
+assinatura do Mongo, não todas as fatias que o assinante tem. Pra UE pedir
+sessão PDU em mais de uma fatia na mesma UE (ver `ue.conf`, campo
+`pdu_sessions` com múltiplas entradas), marque **todas** as fatias
+relevantes do assinante como default:
+```bash
+docker exec 5gc-mongo-1 mongosh open5gs --quiet --eval '
+db.subscribers.updateOne(
+  { imsi: "001010000000004" },
+  { $set: { "slice.1.default_indicator": true, "slice.2.default_indicator": true } }
+);'
+```
+(índices do array `slice` — ajuste conforme a ordem real no documento).
+Também confirme que `snssaiList` no `cu.conf`/`du.conf` anuncia todas as
+fatias (`{ sst = 1; sd = 0xffffff; }, { sst = 2; ... }, { sst = 3; ... }`),
+senão a célula nem propaga suporte às fatias extras pro NGAP.
+
+**UE registra em múltiplas fatias, mas só a `embb` passa tráfego de dados
+— as outras (`urllc`, `miot`) dão timeout de ping:**
+Quase certamente não é bug de rede — é o alvo do ping errado. A UPF usa
+**uma única interface TUN** (`ogstun`, endereço `10.45.0.1/16`) pras três
+sub-redes de fatia, não uma interface por fatia. Os "gateways" que o
+`smf.yaml` declara por DNN (`10.45.1.1` pra `urllc`, `10.45.2.1` pra
+`miot`) são só contabilidade interna da SMF pra alocação de IP — não são
+endereços reais bindados em nenhuma interface da UPF, então pingar esses
+IPs sempre vai dar timeout (ou um ICMP Redirect estranho vindo de
+`10.45.0.1`, que é o sintoma real se você capturar com tcpdump). Pingue
+`10.45.0.1` (o endereço de verdade) a partir de qualquer fatia — funciona
+normalmente, confirmado com as três fatias simultâneas.

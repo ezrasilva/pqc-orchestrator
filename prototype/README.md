@@ -6,7 +6,7 @@ Protótipo de 4 módulos pra diferenciação PQC+QKD por fatia descrito em
 do que [`../docs/ARQUITETURA-ORQUESTRADOR.md`](../docs/ARQUITETURA-ORQUESTRADOR.md)
 desenha de forma distribuída.
 
-## Estado atual: Módulo 2 (sniffer PFCP) e Módulo 3 (classificador eBPF/TC) implementados e validados; achado crítico aberto na integração com o Módulo 4
+## Estado atual: Módulo 2 (sniffer PFCP) e Módulo 3 (classificador eBPF/TC) implementados e validados; integração com o Módulo 4 resolvida e validada contra XFRM real
 
 `pfcp_sniffer/` escuta udp/8805 (passivo, não entra no caminho do
 tráfego), casa S-NSSAI (Establishment Request) com os TEIDs de
@@ -50,14 +50,16 @@ pfcp_sniffer/
 seção 4 do documento de arquitetura e
 [`ebpf_classifier/README.md`](ebpf_classifier/README.md) pro estado
 completo, incluindo 5 testes determinísticos e validação contra tráfego
-real. **Achado crítico ainda em aberto**: confirmado contra o
+real. **Achado crítico encontrado e resolvido**: confirmei contra o
 laboratório real que marcar via TC egress na interface do N3 não
 influencia a seleção de SA do XFRM pra tráfego gerado localmente pela
-CU — precisa de correção de topologia antes do Módulo 4 poder consumir
-o mark como descrito na arquitetura original (detalhes no README do
+CU — a correção (marcar via `iptables -t mangle -A OUTPUT`, que dispara
+`ip_route_me_harder()` e reavalia a SA) foi validada contra duas SAs
+reais do strongSwan, diferenciadas só por mark, com tráfego GTP-U real
+indo pra SA certa conforme o TEID (detalhes e números no README do
 módulo). O Módulo 4 (Agente de Segurança) reaproveita
-`../orchestrator/ipsec_agent/` quase sem mudança, não precisa de código
-novo — mas depende desse achado ser resolvido primeiro.
+`../orchestrator/ipsec_agent/` quase sem mudança, e já pode contar com
+esse mecanismo de seleção por mark pra implementar a Fase 3.
 
 ## Dois bugs reais encontrados e corrigidos aqui (não no rascunho do roteiro)
 

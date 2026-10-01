@@ -32,64 +32,62 @@ scapy, injetados num par veth descartável criado por teste — não depende
 do laboratório OAI de pé) e também **contra tráfego real** do laboratório
 (ver seção "Achado crítico" abaixo pra onde isso foi possível e onde não).
 
-## Achado crítico: TC egress não vê o GTP-U em claro pra tráfego de saída da CU, uma vez que o IPsec já está ativo
+## Achado crítico — e a correção, validada contra XFRM real
 
-**Isto não é um defeito no código acima — é uma limitação de ONDE esse
-código pode ser acoplado nesta topologia, encontrada testando contra
-tráfego real, não suposição.**
+**O problema, encontrado testando contra tráfego real**: o Módulo 4
+precisa que o mark influencie qual SA IPsec criptografa o pacote de
+saída (CU→UPF). TC egress acoplado na mesma interface que o IPsec
+protege **não funciona** pra isso — confirmado de duas formas:
 
-O Módulo 4 precisa que o `mark` setado pelo Módulo 3 influencie qual SA
-IPsec criptografa o pacote de **saída** (CU→UPF) — é assim que a
-diferenciação por fatia aconteceria. Pra isso, o TC precisa marcar o
-pacote **antes** do XFRM decidir/aplicar a criptografia.
+1. `tcpdump` em `veth-cu-n2` com o túnel `n2n3-cu-edge` ativo nunca
+   mostra GTP-U em claro de saída, só ESP — o XFRM já cifrou antes de
+   qualquer qdisc/TC daquela interface rodar (a política XFRM é
+   resolvida como parte da decisão de rota, que acontece antes do TC
+   egress, pra tráfego gerado localmente).
+2. Um contador `iptables -t mangle -A FORWARD` pro mesmo mark nunca
+   incrementou, mesmo com o eBPF confirmando `matched` crescendo —
+   `FORWARD`/`POSTROUTING` do netfilter rodam antes do TC egress, não
+   depois.
 
-**Testado e confirmado nesta VM que isso não acontece** se o hook TC
-estiver no mesmo dispositivo de saída que o XFRM protege:
+**A correção, validada empiricamente**: trocar o ponto de marcação de
+TC egress pra `iptables -t mangle -A OUTPUT`. O hook `OUTPUT` da tabela
+`mangle` tem um comportamento específico do kernel (`iptable_mangle.c`,
+função `ipt_mangle_out`): se o mark do pacote mudar dentro desse hook,
+o kernel chama `ip_route_me_harder()`, que **refaz a resolução de
+rota** — e isso inclui refazer o `xfrm_lookup`, agora já com o mark
+novo. É o mesmo mecanismo por trás do truque clássico de policy routing
+("`iptables mangle OUTPUT` + `ip rule fwmark`"), só que aqui aplicado à
+seleção de SA IPsec em vez de tabela de rota.
 
-1. Capturei `veth-cu-n2` (a interface de saída real do N3 da CU) com o
-   túnel `n2n3-cu-edge` ativo — o tráfego de saída **nunca** aparece como
-   UDP/GTP-U, só como ESP. O XFRM já criptografou antes de qualquer
-   qdisc/TC daquela interface rodar (confirmado — é assim que o kernel
-   trata saída de tráfego gerado localmente: a política XFRM é resolvida
-   como parte da decisão de rota, que acontece antes do TC egress).
-2. Testei marcar via `iptables -t mangle -A FORWARD` e comparei com o
-   `matched` do eBPF rodando em TC egress na mesma interface
-   (`veth-edge-def`, no `5gc-edge-ns`, com tráfego real da UPF):
-   o eBPF via tráfego de verdade e incrementava `matched` corretamente,
-   mas um contador `iptables` independente pro mesmo mark **nunca**
-   incrementava — porque `FORWARD`/`POSTROUTING` (netfilter) rodam
-   **antes** do TC egress no pipeline do kernel, não depois. Ou seja: uma
-   marca setada em TC egress não fica visível pra mais nada processar
-   depois, dentro da mesma máquina — é literalmente o último passo antes
-   do fio.
+Validado em dois passos, num ambiente totalmente isolado (netns
+descartáveis, sem tocar nos túneis `f1-cu-du`/`n2n3-cu-edge` reais):
 
-**Consequência**: o classificador, do jeito que está (TC egress na
-mesma interface que o IPsec protege), não consegue influenciar qual SA
-criptografa o tráfego de saída da CU. Ele funciona perfeitamente como
-classificador — lê o TEID certo, marca certo, confirmado com tráfego
-real — só não está no ponto certo do pipeline pra essa finalidade
-específica.
+1. **Reroteamento puro**: regra `mangle OUTPUT` com `-m u32` lendo o
+   TEID do payload GTP-U (offset 32, 4 bytes) e setando o mark —
+   pacotes UDP/GTP-U reais, cada um com TEID diferente, saindo pela
+   interface certa conforme a regra batia ou não (confirmado via
+   `tcpdump` simultâneo em duas interfaces).
+2. **SA real do XFRM**: duas conexões strongSwan reais entre o mesmo
+   par de endereços, diferenciadas só pelo `mark` (`mark=0x10` /
+   `mark=0x20` no `ipsec.conf`, igual ao mecanismo `mark_in`/`mark_out`
+   já referenciado na arquitetura). Com a mesma regra `mangle OUTPUT`
+   baseada em TEID, enviei 1 pacote GTP-U com TEID mapeado pro mark
+   `0x10` e 3 pacotes com TEID mapeado pro mark `0x20` — `ip -s xfrm
+   state` confirmou exatamente 1 pacote na SA do mark `0x10` (SPI
+   `c87e0211`) e exatamente 3 pacotes na SA do mark `0x20` (SPI
+   `c451928a`), sem nenhum pacote na SA errada.
 
-### Caminho de correção (não implementado ainda)
-
-O padrão que **funciona de forma confiável e bem estabelecida** no Linux
-é marcar tráfego que está sendo **encaminhado** (forwarded), não
-**gerado localmente** — pra tráfego encaminhado, uma marca setada mais
-cedo no pipeline (TC ingress ou `iptables -t mangle -A PREROUTING`) *é*
-respeitada por uma decisão de rota/XFRM feita depois, porque o kernel
-recalcula a rota do zero pro reencaminhamento.
-
-Isso sugere inserir mais um salto antes do enlace protegido por IPsec —
-o mesmo padrão que o `5gc-edge-ns` já usa do lado do núcleo (ver
-`RUNBOOK-OAI.md`): um netns extra onde o socket GTP-U da CU bind na
-verdade, com o classificador TC acoplado no egress **desse** netns
-intermediário. Dali, o pacote (já marcado) é encaminhado pro `cu-ns`
-real, onde agora é tráfego sendo roteado/reencaminhado — a marca deveria
-sobreviver até a decisão de rota+XFRM que escolhe a SA.
-
-**Não implementado nesta fase** — exige reestruturar onde o processo da
-CU (OAI) faz bind do socket N3, o que é uma mudança de topologia, não só
-mais um módulo. Fica como próximo passo explícito, não escondido.
+**Conclusão**: o classificador (lógica TEID→mark, já implementada e
+testada) continua válido — só muda o ponto de anexação, de `tc filter
+... egress` pra uma regra `iptables -t mangle -A OUTPUT`. A forma mais
+simples de reaproveitar a lógica já escrita é portar a leitura do TEID
+e o lookup no map pra uma regra `xt_bpf`/`-m u32`, ou manter o
+`BPF_MAP_TYPE_HASH` existente e consultá-lo via `bpftool` a partir de
+um pequeno daemon que atualiza regras `iptables` dinamicamente (mesmo
+padrão operacional que o Módulo 2 já usa pra atualizar o BPF map, só
+trocando o alvo de atualização). **Não bloqueia mais o Módulo 4** — fica
+como o próximo passo de implementação, não mais como lacuna de
+arquitetura em aberto.
 
 ## Estrutura
 

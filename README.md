@@ -63,10 +63,10 @@ implementados.
 Ver `prototype/README.md` pro estado detalhado. Resumo: sniffer PFCP
 (Módulo 2) e classificador eBPF/TC (Módulo 3) implementados e validados
 (replay de captura real + captura ao vivo / tráfego real do laboratório).
-**Achado crítico em aberto**: a marca que o Módulo 3 define via TC
-egress não influencia a seleção de SA do XFRM pra tráfego gerado
-localmente pela CU — confirmado via tcpdump e contador iptables, ver
-`prototype/ebpf_classifier/README.md`. Precisa de uma correção de
-topologia (salto de encaminhamento extra) antes do Módulo 4 poder
-consumir o mark como a arquitetura original descreve. Módulo 4 (Agente
-de Segurança) reaproveita `orchestrator/ipsec_agent/`.
+Encontrei e resolvi um achado crítico na integração Módulo 3→4: a marca
+definida via TC egress não influencia a seleção de SA do XFRM pra
+tráfego gerado localmente pela CU (confirmado via tcpdump e contador
+iptables) — a correção (marcar via `iptables -t mangle -A OUTPUT`, que
+dispara `ip_route_me_harder()` e reavalia a SA) foi validada contra SAs
+reais do strongSwan, ver `prototype/ebpf_classifier/README.md`. Módulo 4
+(Agente de Segurança) reaproveita `orchestrator/ipsec_agent/`.

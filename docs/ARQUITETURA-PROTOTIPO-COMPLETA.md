@@ -160,7 +160,7 @@ latência disso se mostrar um problema real.
 pacote; quem decide o que fazer com a marca é o XFRM (Módulo 4), não o
 eBPF.
 
-### 4.1 Status (implementado e testado; achado crítico aberto)
+### 4.1 Status (implementado e testado; achado crítico resolvido)
 
 O classificador em si está **implementado, compilado e validado** — 5
 testes determinísticos (GTP-U sintético via scapy, veth descartável) e
@@ -172,11 +172,12 @@ caminho, um bug real: o nome do map `map_teid_to_mark` (16 bytes) era
 truncado pelo kernel pro limite de 15 bytes, fazendo o loader nunca
 encontrar o map pelo nome — renomeado pra `teid_to_mark`.
 
-**Achado crítico, ainda não resolvido**: testando contra o laboratório
-real, confirmei que marcar via TC egress **não funciona** pra influenciar
-a escolha de SA do XFRM, no caso específico de tráfego gerado localmente
-pelo processo da CU (o socket GTP-U do OAI) — que é exatamente o caso do
-Módulo 4. Dois testes independentes confirmaram isso:
+**Achado crítico, encontrado e depois resolvido**: testando contra o
+laboratório real, confirmei que marcar via TC egress **não funciona**
+pra influenciar a escolha de SA do XFRM, no caso específico de tráfego
+gerado localmente pelo processo da CU (o socket GTP-U do OAI) — que é
+exatamente o caso do Módulo 4. Dois testes independentes confirmaram
+isso:
 
 1. `tcpdump` em `veth-cu-n2` (interface de saída real do N3 da CU) com o
    túnel IPsec ativo nunca mostra GTP-U em claro de saída, só ESP — o
@@ -189,20 +190,35 @@ Módulo 4. Dois testes independentes confirmaram isso:
 
 Ou seja: pra tráfego gerado localmente, TC egress na mesma interface que
 o IPsec protege é tarde demais no pipeline do kernel pra influenciar
-qual SA cifra o pacote. Isso **não invalida** o classificador (ele lê o
-TEID certo e marca certo, confirmado com tráfego real) — é uma limitação
-de topologia: onde o gancho TC está acoplado, não o que ele faz.
+qual SA cifra o pacote. Isso **não invalidou** o classificador (ele lê o
+TEID certo e marca certo, confirmado com tráfego real) — era uma
+limitação de topologia: onde o gancho estava acoplado, não o que ele
+fazia.
 
-**Caminho de correção proposto (não implementado)**: inserir um salto de
-encaminhamento adicional antes do enlace protegido por IPsec — um netns
-intermediário onde o socket GTP-U da CU de fato faz bind, com o
-classificador TC no egress desse netns. Dali o pacote marcado é
-encaminhado (não gerado localmente) pro `cu-ns`, onde a marca sobrevive
-até a decisão de rota+XFRM — o mesmo padrão, já comprovado nesta VM, que
-o `5gc-edge-ns` usa do lado do núcleo (ver seção 5.0 abaixo). Exige
-reestruturar a topologia de rede da CU, não é só "mais um módulo" — fica
-como pré-requisito explícito antes do Módulo 4 poder consumir o mark do
-Módulo 3 como descrito aqui.
+**Correção validada empiricamente**: mover o ponto de marcação de TC
+egress pra `iptables -t mangle -A OUTPUT`. O hook `OUTPUT` da tabela
+`mangle` tem um comportamento específico do kernel
+(`iptable_mangle.c`/`ipt_mangle_out`): quando o mark do pacote muda
+dentro desse hook, o kernel chama `ip_route_me_harder()`, que refaz a
+resolução de rota — incluindo o `xfrm_lookup`, agora com o mark novo.
+Validado em dois passos num ambiente isolado (netns descartáveis, sem
+tocar nos túneis reais):
+
+1. Reroteamento puro: regra `mangle OUTPUT` com `-m u32` lendo o TEID do
+   payload GTP-U — pacotes saindo pela interface certa conforme o TEID
+   batia ou não na regra.
+2. SA real do XFRM: duas conexões strongSwan reais entre o mesmo par de
+   endereços, diferenciadas só pelo `mark` (`mark=0x10`/`mark=0x20`).
+   Enviei 1 pacote GTP-U mapeado pro mark `0x10` e 3 mapeados pro mark
+   `0x20` — `ip -s xfrm state` confirmou exatamente 1 pacote na SA do
+   mark `0x10` e exatamente 3 na SA do mark `0x20`, sem nenhum na SA
+   errada.
+
+Detalhes completos (comandos, config strongSwan de teste, números) em
+`prototype/ebpf_classifier/README.md`. **Não bloqueia mais o Módulo 4**
+— o próximo passo é portar a lógica TEID→mark do classificador pro
+ponto de anexação `mangle OUTPUT` (via `xt_bpf`/`-m u32`, ou regras
+atualizadas dinamicamente pelo Módulo 2), em vez de `tc egress`.
 
 ## 5. Módulo 4 — Gerenciador de chaves e cifragem IPsec (XFRM + strongSwan)
 
@@ -438,7 +454,7 @@ projeto.
     fatia que não seja `embb` pingando o "gateway" dela dá timeout; o
     teste certo é pingar `10.45.0.1` (o endereço real), de qualquer fatia.
 - [x] **Fase 2 — Classificação (Módulo 2 e Módulo 3 implementados e
-  testados; integração Módulo 3→4 com achado crítico em aberto)**:
+  testados; integração Módulo 3→4 validada contra XFRM real)**:
   `pfcp_sniffer/` implementado e validado — tanto via replay de uma
   captura real salva (três sessões simultâneas, 6 testes automatizados)
   quanto ao vivo contra a bridge Docker real durante um restart de UE de
@@ -453,14 +469,16 @@ projeto.
   Ver `prototype/README.md` pros detalhes. O classificador eBPF/TC
   (Módulo 3) também está implementado, compilado e validado — tanto por
   5 testes determinísticos quanto contra tráfego real, confirmado via
-  `bpftool map dump` —, mas **o passo de integração com o Módulo 4 tem
-  um achado crítico ainda não resolvido**: TC egress na interface do N3
-  não consegue influenciar a seleção de SA do XFRM pra tráfego gerado
-  localmente pela CU (confirmado via tcpdump e contador iptables — ver
-  seção 4.1 acima e `prototype/ebpf_classifier/README.md`). Esse achado
-  precisa ser endereçado (provavelmente via um salto de encaminhamento
-  extra, não implementado ainda) antes da Fase 3 poder usar o mark do
-  Módulo 3 de verdade.
+  `bpftool map dump`. Encontrei e resolvi um achado crítico na
+  integração com o Módulo 4: TC egress na interface do N3 não
+  influencia a seleção de SA do XFRM pra tráfego gerado localmente pela
+  CU (confirmado via tcpdump e contador iptables) — a correção, marcar
+  via `iptables -t mangle -A OUTPUT` em vez de `tc egress`, foi validada
+  empiricamente contra SAs reais do strongSwan (duas conexões
+  diferenciadas só por mark, tráfego real roteado pra SA certa conforme
+  o TEID). Detalhes e números em seção 4.1 acima e
+  `prototype/ebpf_classifier/README.md`. A Fase 3 já pode contar com
+  esse mecanismo pra seleção de SA por fatia.
 - [ ] **Fase 3 — Cifragem manual**: Módulo 4 com SAs criadas **à mão**
   (chave fixa, sem PQC/QKD ainda) pra validar só a seleção por mark —
   usando as três conexões `n3-<fatia>-cu-edge` da seção 5.1, mas com

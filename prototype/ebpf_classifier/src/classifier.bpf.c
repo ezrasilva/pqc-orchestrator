@@ -3,21 +3,20 @@
 // Módulo 2 (pfcp_sniffer) popula. Ver docs/ARQUITETURA-PROTOTIPO-COMPLETA.md
 // seção 4.
 //
-// **Limitação conhecida, encontrada e documentada ao testar isto (não
-// escondida)**: este programa funciona corretamente pra tráfego onde o
-// GTP-U chega/sai em claro na interface onde o hook TC está — mas não é
-// esse o caso do enlace de saída (CU->UPF) nesta topologia depois que o
-// IPsec entra em cena: o XFRM criptografa o pacote como parte da decisão
-// de rota, ANTES de qualquer qdisc/TC do dispositivo de saída rodar, pra
-// tráfego gerado localmente pelo processo da CU (o socket GTP-U do OAI).
-// Um hook TC egress no `veth-cu-n2` só vê ESP, nunca o GTP-U em claro.
-// Confirmado com captura real — ver prototype/ebpf_classifier/README.md
-// pra detalhes e o caminho de correção proposto (ainda não implementado).
-//
-// Isso NÃO significa que o programa abaixo esteja errado — ele faz
-// exatamente o que o Módulo 3 descreve, e funciona corretamente em
-// qualquer ponto onde o GTP-U realmente trafegue em claro (confirmado
-// com tráfego real de verdade, não só em teoria — ver o README).
+// **Limitação conhecida e já corrigida (não escondida)**: pra tráfego
+// gerado localmente pelo processo da CU (o socket GTP-U do OAI), um
+// hook TC egress na MESMA interface que o IPsec protege não funciona —
+// o XFRM já cifra o pacote como parte da decisão de rota, antes de
+// qualquer qdisc/TC rodar (confirmado com captura real em
+// `veth-cu-n2`: só ESP de saída, nunca GTP-U em claro). A lógica deste
+// programa (ler o TEID, consultar o map, decidir o mark) continua
+// válida — só o PONTO DE ANEXAÇÃO muda: em produção, marcar via
+// `iptables -t mangle -A OUTPUT` em vez de `tc egress`, porque o kernel
+// chama `ip_route_me_harder()` quando o mark muda nesse hook
+// específico, o que refaz o `xfrm_lookup` com o mark novo e seleciona a
+// SA certa — validado contra SAs reais do strongSwan, não só teoria.
+// Ver prototype/ebpf_classifier/README.md pros detalhes e os números do
+// teste.
 
 #include <linux/bpf.h>
 #include <linux/if_ether.h>

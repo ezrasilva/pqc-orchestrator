@@ -10,6 +10,7 @@ __pycache__/
 # ficam no repo; os arquivos reais (com PSK/IMSI/key/opc de verdade) são
 # gerados localmente seguindo docs/RUNBOOK-OAI.md.
 lab/ipsec/*/ipsec.secrets
+lab/ipsec/swanctl-*/conf.d/secrets.conf
 lab/ran/ue.conf
 
 # Logs de execução do laboratório

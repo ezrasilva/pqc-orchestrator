@@ -167,14 +167,32 @@ Security Associations (2 up, 0 connecting):
 
 Desde a Fase 3 do protótipo SBRC (ver `ARQUITETURA-PROTOTIPO-COMPLETA.md`
 seção 5), o enlace N3 (GTP-U, dado de usuário) não sobe mais junto com o
-N2 — foi dividido em três conexões `n3-<fatia>-cu-edge` (`auto=add`,
-porque o gatilho de subir cada uma é a fatia aparecer, não o boot do
-sistema). Pra subir as três manualmente:
+N2 — foi dividido em três conexões `n3-<fatia>-cu-edge`. Desde a Fase 4
+(seção 5.4), essas três conexões **não estão mais no `ipsec.conf`
+clássico** — foram movidas pra `vici`/`swanctl` (dois achados reais
+forçaram isso: PPK não existe no parser clássico, e conexões
+compartilhando endereço externo podem sofrer downgrade silencioso de
+proposta). `start-ipsec-side.sh` já bind-monta a config vici
+(`swanctl-{cu,edge}/conf.d/*.conf`) nas instâncias de `cu-ns`/
+`5gc-edge-ns`; depois de rodar o `start-all-ipsec.sh`, suba as três N3
+com:
+```bash
+sudo bash ~/oai-lab-conf/load-and-initiate-n3.sh
+```
+Esse script faz `swanctl --load-all` nos dois lados e `swanctl
+--initiate` nas três — e termina imprimindo o `swanctl --list-sas`
+completo. Espera-se ver os três perfis PQC reais, incluindo `/PPK` na
+linha da URLLC:
+```
+n3-miot-cu-edge:  ... AES_GCM_16-128/PRF_HMAC_SHA2_256/ML_KEM_512
+n3-embb-cu-edge:  ... AES_GCM_16-256/PRF_HMAC_SHA2_256/ML_KEM_512
+n3-urllc-cu-edge: ... AES_GCM_16-128/PRF_HMAC_SHA2_256/ML_KEM_768/PPK
+```
+Pra subir manualmente só uma das três (ex: depois de uma rotação), sem
+rodar o script inteiro:
 ```bash
 CU_CHARON_PID=$(sudo ip netns pids cu-ns | while read -r p; do [ "$(ps -p "$p" -o comm=)" = charon ] && echo "$p" && break; done)
-sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" ipsec up n3-urllc-cu-edge
-sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" ipsec up n3-embb-cu-edge
-sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" ipsec up n3-miot-cu-edge
+sudo nsenter --mount="/proc/${CU_CHARON_PID}/ns/mnt" --net="/proc/${CU_CHARON_PID}/ns/net" swanctl --initiate --child n3-urllc-cu-edge
 ```
 
 **Ordem importa:** suba o IPsec **depois** da rede (passo 0) e **antes** ou
@@ -318,6 +336,31 @@ solução final (`5gc-edge-ns` como membro real das redes Docker, sem NAT,
 com proxy-ARP pros aliases da CU) resolve as duas coisas de uma vez. Se você
 encontrar essa versão antiga do `setup-network.sh` (rotas via `10.100.0.1`
 com MASQUERADE pro N2/N3) num backup antigo, não reaproveita — use a atual.
+
+**Subi uma conexão IKE com ML-KEM mas o `swanctl --list-sas` mostra
+MODP_2048/AES_CBC clássico, sem erro nenhum no caminho:**
+Downgrade silencioso de proposta — achado na Fase 4 (ver
+`ARQUITETURA-PROTOTIPO-COMPLETA.md` seção 5.4). Acontece quando duas ou
+mais conexões apontam pro MESMO par de endereços externos (`left`/
+`right`) com perfis `ike=`/proposals diferentes: durante o `IKE_SA_INIT`,
+antes da autenticação, o strongSwan ainda não sabe qual conn nomeada vai
+se aplicar, então tenta casar a proposta recebida contra TODOS os
+`ike_cfg` daquele endereço — se o retry após um `INVAL_KE` encontrar um
+perfil mais fraco que também bate, aceita sem avisar. Fix: dê a cada
+conexão que precisa de um perfil distinto um par de endereços externos
+próprio (não precisa ser roteável de fora — um alias dentro do mesmo
+`/24` do veth já resolve, foi o que fizemos pras três N3).
+
+**Editei um `ipsec.conf`/`swanctl.conf` já bind-montado numa instância
+isolada e a instância continua vendo o conteúdo antigo mesmo depois de
+`ipsec reload`/`ipsec rereadall`:**
+`mount --bind` aponta pro *inode* do arquivo no momento do mount, não
+pro caminho. Se a edição usa um editor que salva via
+escrever-um-arquivo-novo-e-renomear (comum — é o padrão "atômico"),
+o inode antigo (ainda montado) fica órfão e a instância nunca vê o
+conteúdo novo, não importa quantas vezes você mande recarregar. Único
+jeito de pegar a mudança: matar o processo e rodar `start-ipsec-side.sh`
+de novo, criando um bind mount novo a partir do arquivo atual.
 
 **Reiniciei o strongSwan (`stop-all-ipsec.sh` + `start-all-ipsec.sh`) e a
 UE não registra mais / CU não recebe mais `Initial UE Message`:**

@@ -70,7 +70,12 @@ mangle -A OUTPUT`, que dispara `ip_route_me_harder()` e reavalia a SA)
 foi validada contra SAs reais do strongSwan. **Fase 3 (cifragem manual,
 Módulo 4) concluída**: três SAs N3 por fatia, diferenciadas só por mark,
 validadas com tráfego real do laboratório — `ip -s xfrm state` confirmou
-cada fatia indo exclusivamente pra sua própria SA, zero cruzamento. Ver
-`prototype/ebpf_classifier/README.md` e
-`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md` (seção 5) pros detalhes. Fase 4
-(hibridização PQC+QKD de verdade) é o próximo passo.
+cada fatia indo exclusivamente pra sua própria SA, zero cruzamento.
+**Fase 4 (hibridização PQC+QKD) concluída**: as três SAs N3 negociam os
+perfis reais da tabela (URLLC ML-KEM-768+PPK simulando QKD, eMBB/mIoT
+ML-KEM-512), confirmado via `swanctl --list-sas`. Dois achados críticos
+resolvidos no processo — PPK não existe no parser clássico do
+`ipsec.conf`, e conexões que compartilham endereço externo podem sofrer
+downgrade silencioso de proposta — ambos documentados com a correção em
+`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md` (seção 5.4). Fase 5 (rotação
+dinâmica via risco) fica pra um próximo artigo/trabalho futuro.

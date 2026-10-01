@@ -60,17 +60,30 @@ indo pra SA certa conforme o TEID (detalhes e números no README do
 módulo). O Módulo 4 (Agente de Segurança) reaproveita
 `../orchestrator/ipsec_agent/` quase sem mudança.
 
-**Fase 3 (cifragem manual) concluída e validada contra o laboratório
-real**: a antiga conexão `n2n3-cu-edge` foi dividida em `n2-cu-edge`
-(controle) e três `n3-<fatia>-cu-edge` (dado de usuário, diferenciadas
-só por mark, cifra fixa — sem PQC ainda, isso é Fase 4). Capturei os
-TEIDs reais das três sessões PDU via o sniffer PFCP ao vivo, apliquei o
-mark certo por `iptables -t mangle -A OUTPUT`
-(`lab/ipsec/apply-n3-slice-marks.sh`) e gerei tráfego real por fatia —
-`ip -s xfrm state` confirmou as três SAs com tráfego exclusivamente na
-SA certa, zero cruzamento. Detalhes em
-[`../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md#5-módulo-4--gerenciador-de-chaves-e-cifragem-ipsec-xfrm--strongswan)
-(seção 5, Fase 3).
+**Fase 3 (cifragem manual) concluída**: a antiga conexão `n2n3-cu-edge`
+foi dividida em `n2-cu-edge` (controle) e três `n3-<fatia>-cu-edge`
+(dado de usuário, diferenciadas só por mark). Capturei os TEIDs reais
+das três sessões PDU via o sniffer PFCP ao vivo, apliquei o mark certo
+por `iptables -t mangle -A OUTPUT` (`lab/ipsec/apply-n3-slice-marks.sh`)
+e confirmei via `ip -s xfrm state` que cada fatia vai exclusivamente
+pra sua própria SA.
+
+**Fase 4 (hibridização PQC+QKD) concluída e validada contra o
+laboratório real**: as três SAs N3 agora negociam os perfis reais da
+tabela (URLLC ML-KEM-768 + PPK simulando QKD, eMBB ML-KEM-512/AES-256-
+GCM, mIoT ML-KEM-512/AES-128-GCM) — confirmado via `swanctl --list-sas`
+(a linha da URLLC termina em `/PPK`, confirmando que a SA foi
+estabelecida usando o PPK, não só configurada). Dois achados críticos
+resolvidos no processo: PPK não existe no parser clássico do
+`ipsec.conf` (confirmado no código-fonte do strongSwan); e conexões que
+compartilham o mesmo endereço externo (`left`/`right`) podem sofrer
+**downgrade silencioso de proposta** durante o `IKE_SA_INIT` — reproduzi
+isso isoladamente antes de mexer no laboratório real. Corrigido dando a
+cada N3 um par de endereços externos próprio e movendo as três conexões
+pra `vici`/`swanctl` (`lab/ipsec/swanctl-{cu,edge}/conf.d/`). Detalhes
+completos em
+[`../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md#54-fase-4--implementação-real-e-dois-achados-críticos-resolvidos)
+(seção 5.4).
 
 ## Dois bugs reais encontrados e corrigidos aqui (não no rascunho do roteiro)
 

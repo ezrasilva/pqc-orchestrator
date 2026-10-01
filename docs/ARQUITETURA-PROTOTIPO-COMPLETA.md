@@ -392,6 +392,68 @@ necessária nos túneis já ativos (`f1-cu-du`, `n2n3-cu-edge` continuam com
 o mesmo `ike=`/`esp=` de sempre — PQC só entra quando as três conexões
 `n3-<fatia>-cu-edge` da seção 5.1 forem configuradas de fato, na Fase 4).
 
+### 5.4 Fase 4 — implementação real e dois achados críticos resolvidos
+
+As três conexões N3 (`n3-urllc-cu-edge`, `n3-embb-cu-edge`,
+`n3-miot-cu-edge`) estão **implementadas e validadas** com os perfis PQC
+reais da tabela da seção 5.1 — confirmado via `swanctl --list-sas`:
+
+```
+n3-miot-cu-edge:  AES_GCM_16-128/PRF_HMAC_SHA2_256/ML_KEM_512
+n3-embb-cu-edge:  AES_GCM_16-256/PRF_HMAC_SHA2_256/ML_KEM_512
+n3-urllc-cu-edge: AES_GCM_16-128/PRF_HMAC_SHA2_256/ML_KEM_768/PPK
+```
+
+O `/PPK` no final da linha da URLLC é o próprio `swanctl` confirmando que
+a SA foi estabelecida usando o PPK — não só que está configurado. Tráfego
+real (ping pelas três interfaces `oaitun_ue1*`) confirmou via `ip -s xfrm
+state` que cada fatia continua indo exclusivamente pra sua própria SA,
+agora já com os perfis PQC.
+
+**Achado crítico #1 — PPK não existe no parser clássico do
+`ipsec.conf`.** Confirmado em `src/starter/keywords.txt` do código-fonte
+do strongSwan (168 palavras-chave reconhecidas pelo parser `stroke`,
+nenhuma menção a "ppk"). PPK (RFC 8784) é um recurso exclusivo do
+plano de controle `vici`/`swanctl.conf`.
+
+**Achado crítico #2 — conexões que compartilham o mesmo par de
+endereços externos (`left`/`right`) podem sofrer DOWNGRADE SILENCIOSO
+de proposta.** Reproduzido num ambiente isolado antes de mexer no
+laboratório real: com duas conexões para o mesmo par de IPs, uma com
+perfil clássico (`aes256-sha256-modp2048`) e outra com ML-KEM
+(`aes256gcm16-prfsha256-mlkem512`), subir *só* a conexão PQC resultava
+num handshake que silenciosamente caía pro perfil clássico — sem erro,
+sem aviso. Causa raiz: durante o `IKE_SA_INIT`, antes da autenticação, o
+strongSwan ainda não sabe qual "conn" nomeada vai se aplicar — ele tenta
+casar a proposta recebida contra TODOS os `ike_cfg` configurados pra
+aquele endereço, e se o retry após um `INVAL_KE` encontrar um perfil mais
+fraco que *também* bate, aceita ele sem reclamar. Confirmado via
+`select_proposal`/`process_sa_payload` em
+`src/libcharon/sa/ikev2/tasks/ike_init.c`.
+
+**Correção**: cada uma das três conexões N3 ganhou um par de endereços
+externos próprio — `10.97.0.11↔10.97.0.12` (URLLC), `10.97.0.21↔10.97.0.22`
+(eMBB), `10.97.0.31↔10.97.0.32` (mIoT), todos aliases dentro do mesmo
+`/24` do enlace ponto-a-ponto `veth-cu-n2`↔`veth-edge-cu` que já existia
+(sem precisar de proxy-ARP novo). F1 e N2 continuam com o endereço
+único de sempre (`10.99.0.1↔10.99.0.2` e `10.97.0.1↔10.97.0.2`) porque
+não têm essa ambiguidade — cada um é a única conexão pro seu par de
+endereços.
+
+**Consequência de escopo**: como já era necessário sair do formato
+clássico pra resolver o achado #2 (não só pro PPK da URLLC), as três
+conexões N3 foram todas movidas pra `vici`/`swanctl` — não só a URLLC.
+F1 e N2 continuam em `ipsec.conf` clássico, sem motivo pra mudar. A
+configuração vici fica em `lab/ipsec/swanctl-{cu,edge}/conf.d/` (dois
+arquivos por lado: `connections.conf`, sem segredos, versionado; e
+`secrets.conf`, gerado localmente a partir de `secrets.conf.example`,
+nunca versionado — mesmo padrão do `ipsec.secrets`). O
+`start-ipsec-side.sh` agora bind-monta os dois arquivos em
+`/etc/swanctl/conf.d/` (sem tocar no `swanctl.conf` principal, que já
+inclui esse diretório por padrão). As três conexões não sobem sozinhas
+(`start_action = none`, equivalente vici do `auto=add`) — suba com
+`lab/ipsec/load-and-initiate-n3.sh` depois do `start-ipsec-side.sh`.
+
 ## 6. Fluxo de execução passo a passo (visão consolidada)
 
 1. UE (OAI) solicita sessão PDU associada a um S-NSSAI.
@@ -502,11 +564,20 @@ projeto.
   explícito no netns antes de subir a instância nova, senão a SA antiga
   continua roteando tráfego não marcado e compete com as políticas
   novas.
-- [ ] **Fase 4 — Hibridização PQC+QKD**: primeiro compilar strongSwan com
-  um backend PQC (ver 5.3 — não está disponível via `apt` nesta VM), só
-  depois automatizar liboqs+PPK e aplicar os perfis da tabela da seção
-  5.1 de verdade. Critério de saída: handshake IKEv2 com ML-KEM confirmado
-  no log do charon, PPK confirmado ativo na SA da URLLC.
+- [x] **Fase 4 — Hibridização PQC+QKD**: concluída e validada contra o
+  laboratório real. As três SAs N3 negociam os perfis reais da tabela da
+  seção 5.1 — confirmado em `swanctl --list-sas`: URLLC
+  `ML_KEM_768`+`PPK`, eMBB `ML_KEM_512`/AES-256-GCM, mIoT
+  `ML_KEM_512`/AES-128-GCM. Critério de saída atendido nos dois pontos:
+  handshake IKEv2 com ML-KEM confirmado (`selected proposal:
+  IKE:.../ML_KEM_768` no log do charon) e PPK confirmado ativo na SA da
+  URLLC (sufixo `/PPK` no `swanctl --list-sas`, não só na config). Dois
+  achados críticos no processo, ambos resolvidos — ver seção 5.4: PPK não
+  existe no parser clássico do `ipsec.conf` (confirmado no código-fonte),
+  e conexões compartilhando o mesmo endereço externo podem sofrer
+  downgrade silencioso de proposta (reproduzido isoladamente antes de
+  tocar no laboratório real). Corrigido dando a cada N3 um par de
+  endereços externos próprio e movendo as três pra vici/swanctl.
 - [ ] **Fase 5 (futuro/próximo artigo ou seção de trabalhos futuros)**:
   conectar o Scheduler com fórmula de risco pra decidir rotação
   dinâmica, em vez de rotação fixa/manual.

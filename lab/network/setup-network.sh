@@ -259,6 +259,27 @@ else
     log "Alias 172.18.0.99/32 já existe na cu-ns, ok"
 fi
 
+# 6.6b Fase 4 (protótipo SBRC): endereço externo dedicado por fatia N3
+# (urllc/embb/miot), pra cada SA IPsec ter seu próprio par left/right —
+# necessário porque múltiplos conns IKE compartilhando o mesmo par de
+# endereços podem sofrer downgrade silencioso de proposta (achado
+# confirmado nesta VM, ver ARQUITETURA-PROTOTIPO-COMPLETA.md seção 5.3).
+# Já estão dentro do /24 de 10.97.0.1, então não precisam de proxy-ARP
+# nem rota extra — só mais aliases no mesmo veth ponto-a-ponto.
+for pair in "10.97.0.11 cu-ns veth-cu-n2" "10.97.0.12 5gc-edge-ns veth-edge-cu" \
+            "10.97.0.21 cu-ns veth-cu-n2" "10.97.0.22 5gc-edge-ns veth-edge-cu" \
+            "10.97.0.31 cu-ns veth-cu-n2" "10.97.0.32 5gc-edge-ns veth-edge-cu"; do
+    addr=$(echo "$pair" | cut -d' ' -f1)
+    ns=$(echo "$pair" | cut -d' ' -f2)
+    iface=$(echo "$pair" | cut -d' ' -f3)
+    if ! ip netns exec "$ns" ip addr show dev "$iface" | grep -q "$addr/32"; then
+        log "Adicionando alias $addr/32 em $ns (N3 Fase 4, outer dedicado)"
+        ip netns exec "$ns" ip addr add "$addr/32" dev "$iface"
+    else
+        log "Alias $addr/32 já existe em $ns, ok"
+    fi
+done
+
 # 6.7 Rotas da cu-ns pras sub-redes do 5GC agora via edge-ns, substituindo
 # (route replace, não add) a rota antiga via veth-host-cu da seção 4/5.
 log "Apontando rotas cu-ns -> core-net/default pro 5gc-edge-ns (10.97.0.2)"

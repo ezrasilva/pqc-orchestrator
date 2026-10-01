@@ -15,8 +15,11 @@ Leia nessa ordem:
 
 ```
 docs/            Os cinco documentos acima.
-orchestrator/     Código do orquestrador (contratos gRPC + KMS implementados;
-                   Scheduler/IPsec Agent/SMO/Admin API ainda não).
+orchestrator/     Código do orquestrador distribuído (contratos gRPC + KMS +
+                   IPsec Agent implementados; Scheduler/SMO/Admin API ainda não).
+prototype/        Código do protótipo de nó único pro SBRC 2027 (sniffer PFCP
+                   implementado; classificador eBPF ainda não — reaproveita
+                   orchestrator/ipsec_agent/ como Módulo 4).
 lab/              Configs e scripts do laboratório OAI+Open5GS+IPsec que os
                    docs acima descrevem — não é código do orquestrador, é a
                    infraestrutura que ele vai gerenciar.
@@ -51,5 +54,13 @@ cópia deste laboratório.
 ## Estado do orquestrador
 
 Ver `orchestrator/README.md` pro estado detalhado. Resumo: contratos gRPC
-(item 1) e KMS isolado e testável (item 2) prontos; Scheduler, IPsec Agent,
-SMO e Admin API (itens 3-6) ainda não implementados.
+(item 1), KMS isolado e testável (item 2) e IPsec Agent nativo mínimo
+(item 3) prontos; Scheduler, SMO e Admin API (itens 4-6) ainda não
+implementados.
+
+## Estado do protótipo (SBRC 2027)
+
+Ver `prototype/README.md` pro estado detalhado. Resumo: sniffer PFCP
+(Módulo 2) implementado e validado (replay de captura real + captura ao
+vivo); classificador eBPF/TC (Módulo 3) ainda não implementado. Módulo 4
+(Agente de Segurança) reaproveita `orchestrator/ipsec_agent/`.

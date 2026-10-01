@@ -9,6 +9,16 @@ Session Establishment Request pra toda sessão 5G (`src/smf/n4-build.c`,
 **Validado ao vivo** (não só por leitura de código) — ver nota no final da
 seção 2b.
 
+**IMPLEMENTADO — o parser TLV manual deste documento (seção 2b) está
+desatualizado, não usar.** A implementação real está em
+`prototype/pfcp_sniffer/` (ver `prototype/README.md`) e usa o dissector
+PFCP nativo do scapy em vez de TLV escrito à mão — o pseudocódigo abaixo
+nunca chegou a rodar contra tráfego real e tinha pelo menos um bug
+confirmado (tamanho do header PFCP com SEID: são 16 bytes, não 12 — faltam
+os 3 bytes do número de sequência + 1 de spare entre o SEID e as IEs).
+O resto desta seção fica como registro histórico da primeira tentativa,
+não como instrução a seguir.
+
 ## 0. Correção de um detalhe antes de começar
 
 ~~No seu esboço anterior, o mapeamento SST estava certo (SST 2 = URLLC,

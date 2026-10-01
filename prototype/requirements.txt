@@ -1,0 +1,2 @@
+scapy>=2.6
+pytest>=8

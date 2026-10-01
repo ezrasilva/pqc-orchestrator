@@ -391,11 +391,20 @@ projeto.
     IP, não endereços reais bindados na UPF. Testar conectividade de uma
     fatia que não seja `embb` pingando o "gateway" dela dá timeout; o
     teste certo é pingar `10.45.0.1` (o endereço real), de qualquer fatia.
-- [ ] **Fase 2 — Classificação**: Módulos 2 e 3 juntos. Critério de
-  saída: os dois checklists de validação do
-  `ROTEIRO-MODULO2-SNIFFER-PFCP.md` (o de PFCP/TEID já está feito), mais
-  confirmar via `bpftool map dump` que pacotes de fatias diferentes saem
-  com marks diferentes.
+- [ ] **Fase 2 — Classificação (Módulo 2 pronto; Módulo 3 ainda não)**:
+  `pfcp_sniffer/` implementado e validado — tanto via replay de uma
+  captura real salva (três sessões simultâneas, 6 testes automatizados)
+  quanto ao vivo contra a bridge Docker real durante um restart de UE de
+  verdade, usando a classe `PfcpSniffer` de ponta a ponta, não só o
+  parser isolado. Achados reais corrigidos no processo (não no
+  pseudocódigo original do roteiro): o cálculo do tamanho do header PFCP
+  com SEID estava errado (16 bytes, não 12); o SEID do cabeçalho não é
+  um ID de sessão único (é "de quem recebe a mensagem", CP ou UP têm
+  valores diferentes — a correlação certa usa o IE F-SEID); e um FAR
+  aponta pra `CP-function`, não pro enlace N3, então extrair o primeiro
+  Outer Header Creation sem checar a interface pega o TEID/IP errado.
+  Ver `prototype/README.md` pros detalhes. Falta o classificador eBPF/TC
+  (Módulo 3) e confirmar via `bpftool map dump`.
 - [ ] **Fase 3 — Cifragem manual**: Módulo 4 com SAs criadas **à mão**
   (chave fixa, sem PQC/QKD ainda) pra validar só a seleção por mark —
   usando as três conexões `n3-<fatia>-cu-edge` da seção 5.1, mas com

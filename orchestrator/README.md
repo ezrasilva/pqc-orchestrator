@@ -4,7 +4,50 @@ Implementação do orquestrador de chaves PQC por fatia descrito em
 `../docs/ARQUITETURA-ORQUESTRADOR.md` (leia esse documento primeiro — este README
 só situa o estado do código).
 
-## Estado atual: item 3 da ordem de construção (IPsec Agent nativo mínimo)
+## Estado atual: item 4 da ordem de construção (Scheduler com fórmula de risco)
+
+`scheduler/` implementa a fila priorizada (`EMERGENCY > CRITICAL >
+NORMAL`, com a fórmula de risco `-slack/cost + slice_bonus +
+interface_bonus + aging` decidindo a ordem dentro de cada classe) e as
+três políticas de escalonamento intercambiáveis (risk-aware,
+weighted-EDF, FIFO) — sem gRPC ainda, mesmo padrão do KMS/IPsec Agent
+(núcleo isolado e testável primeiro). 21 testes cobrindo a fórmula, as
+três políticas, prioridade de classe sobre risco, aging anti-starvation,
+cancelamento e troca de política em runtime.
+
+**Validado contra o laboratório real** (`scheduler/live_demo.py`, Fase 5
+do protótipo SBRC — ver `../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`):
+lê a idade real das três SAs N3 (`swanctl --list-sas`), calcula o risco
+de cada uma contra um SLA de rotação por fatia, enfileira as três e
+dispara `swanctl --rekey` na de maior risco. Rodado contra o laboratório
+de verdade: identificou a URLLC como maior risco (risco calculado
+890.5 vs. 588.5 da eMBB vs. -880.5 da mIoT, que estava dentro do SLA) e
+confirmou a rotação real via mudança de SPI de saída. Achado no
+processo: `swanctl --initiate` falha numa child já `ESTABLISHED`
+("existing duplicate") — o comando certo pra rotacionar uma SA já ativa
+é `swanctl --rekey`.
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest scheduler/tests            # núcleo isolado, sem root
+sudo .venv/bin/python3 -m scheduler.live_demo   # contra o laboratório real, precisa de root
+```
+
+Estrutura:
+```
+scheduler/
+  models.py       # Task, SchedulingPolicy, TaskPriority + PRIORITY_RANK
+  policy.py        # fórmula de risco + sort_key das três políticas
+  service.py        # SchedulerCore — fila em memória, thread-safe
+  live_demo.py       # Fase 5: liga a fórmula de risco às 3 SAs N3 reais
+  tests/
+```
+
+Próximo item da ordem (5): SMO, amarrando KMS + Scheduler + IPsec Agent
+atrás de uma Admin API.
+
+## Item 3 — IPsec Agent nativo mínimo (concluído)
 
 `ipsec_agent/` fala VICI direto com os `charon` do laboratório (ver
 `docs/RUNBOOK-OAI.md`) e implementa `apply_key_material` (carrega PSK
@@ -36,8 +79,6 @@ ipsec_agent/
   agent.py          # IpsecAgentCore — a lógica em si
   tests/            # integração contra o charon real do laboratório (pula sem root/sem o lab de pé)
 ```
-
-Próximo item da ordem (4): Scheduler com a fórmula de risco.
 
 ## Item 2 — KMS isolado e testável (concluído)
 

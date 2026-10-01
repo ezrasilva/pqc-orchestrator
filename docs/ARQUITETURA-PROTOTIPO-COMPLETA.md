@@ -578,9 +578,22 @@ projeto.
   downgrade silencioso de proposta (reproduzido isoladamente antes de
   tocar no laboratório real). Corrigido dando a cada N3 um par de
   endereços externos próprio e movendo as três pra vici/swanctl.
-- [ ] **Fase 5 (futuro/próximo artigo ou seção de trabalhos futuros)**:
-  conectar o Scheduler com fórmula de risco pra decidir rotação
-  dinâmica, em vez de rotação fixa/manual.
+- [x] **Fase 5 — rotação dinâmica via fórmula de risco**: concluída e
+  validada contra o laboratório real. `orchestrator/scheduler/`
+  implementa a fila priorizada (`EMERGENCY > CRITICAL > NORMAL`, fórmula
+  `-slack/cost + slice_bonus + interface_bonus + aging` decidindo a
+  ordem dentro de cada classe — ver `ARQUITETURA-ORQUESTRADOR.md` seção
+  2) com as três políticas de escalonamento do plano de experimentação
+  (risk-aware, weighted-EDF, FIFO), 21 testes isolados. A ponte com o
+  laboratório real (`scheduler/live_demo.py`) lê a idade das três SAs N3
+  via `swanctl --list-sas`, calcula o risco de cada uma contra um SLA de
+  rotação por fatia, e dispara a rotação na de maior risco: rodado de
+  verdade, escolheu a URLLC (risco 890.5, muito acima da eMBB e mIoT) e
+  confirmou a rotação via mudança real de SPI de saída — sem derrubar o
+  túnel nem perder os perfis PQC/PPK negociados. Achado no processo:
+  `swanctl --initiate` falha numa child já `ESTABLISHED` ("existing
+  duplicate") — o comando certo pra rotacionar uma SA ativa é `swanctl
+  --rekey`. Detalhes em `orchestrator/README.md`.
 
 ## 9. Riscos e pontos de atenção já identificados (não deixar passar)
 

@@ -85,6 +85,19 @@ completos em
 [`../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](../docs/ARQUITETURA-PROTOTIPO-COMPLETA.md#54-fase-4--implementação-real-e-dois-achados-críticos-resolvidos)
 (seção 5.4).
 
+**Fase 5 (rotação dinâmica via fórmula de risco) concluída**:
+`../orchestrator/scheduler/` implementa a fila priorizada e a fórmula de
+risco da arquitetura (`-slack/cost + slice_bonus + interface_bonus +
+aging`), com as três políticas de escalonamento (risk-aware,
+weighted-EDF, FIFO) e 21 testes isolados. A ponte com o laboratório real
+(`scheduler/live_demo.py`) lê a idade real das três SAs N3, calcula o
+risco de cada uma contra um SLA de rotação por fatia, e dispara
+`swanctl --rekey` na de maior risco — rodado de verdade, escolheu a
+URLLC corretamente e confirmou a rotação via mudança real de SPI, sem
+derrubar o túnel nem perder os perfis PQC/PPK. Com isso, as cinco fases
+do protótipo (Baseline → Classificação → Cifragem manual → PQC+QKD →
+Rotação dinâmica) estão completas.
+
 ## Dois bugs reais encontrados e corrigidos aqui (não no rascunho do roteiro)
 
 1. **Header PFCP com SEID tem 16 bytes, não 12.** O pseudocódigo original

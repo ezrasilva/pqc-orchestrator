@@ -54,8 +54,10 @@ cópia deste laboratório.
 ## Estado do orquestrador
 
 Ver `orchestrator/README.md` pro estado detalhado. Resumo: contratos gRPC
-(item 1), KMS isolado e testável (item 2) e IPsec Agent nativo mínimo
-(item 3) prontos; Scheduler, SMO e Admin API (itens 4-6) ainda não
+(item 1), KMS isolado e testável (item 2), IPsec Agent nativo mínimo
+(item 3) e Scheduler com fórmula de risco (item 4) prontos — o Scheduler
+já foi validado disparando rotação real no laboratório (ver estado do
+protótipo abaixo, Fase 5). SMO e Admin API (itens 5-6) ainda não
 implementados.
 
 ## Estado do protótipo (SBRC 2027)
@@ -77,5 +79,10 @@ ML-KEM-512), confirmado via `swanctl --list-sas`. Dois achados críticos
 resolvidos no processo — PPK não existe no parser clássico do
 `ipsec.conf`, e conexões que compartilham endereço externo podem sofrer
 downgrade silencioso de proposta — ambos documentados com a correção em
-`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md` (seção 5.4). Fase 5 (rotação
-dinâmica via risco) fica pra um próximo artigo/trabalho futuro.
+`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md` (seção 5.4). **Fase 5 (rotação
+dinâmica via risco) concluída**: `orchestrator/scheduler/` liga a fórmula
+de risco da arquitetura às três SAs N3 reais — lê a idade de cada uma,
+calcula o risco contra um SLA por fatia, e dispara a rotação (`swanctl
+--rekey`) na de maior risco. Rodado contra o laboratório de verdade,
+escolheu a URLLC corretamente (risco muito acima das outras duas) e
+confirmou a rotação via mudança real de SPI.

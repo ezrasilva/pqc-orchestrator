@@ -253,6 +253,19 @@ def capture_and_apply_slice_marks(cu_netns: str = "cu-ns", ue_netns: str = "du-n
 
 
 def wait_for_sa_established(netns: str, conn_name: str, timeout_seconds: float = 30.0) -> bool:
+    """**Achado real rodando a primeira campanha longa**: a versão
+    anterior checava `conn_name in stdout` e `"ESTABLISHED" in stdout`
+    como duas condições SEPARADAS — como outras conexões (F1, N2) já
+    costumam estar `ESTABLISHED` na mesma saída do `swanctl --list-sas`,
+    isso dava falso positivo pra uma conexão que na verdade ainda estava
+    presa em `CONNECTING` (o Cenário 1 "passou" no setup com a SA nunca
+    tendo subido de verdade). Corrigido: exige que a palavra
+    `ESTABLISHED` apareça especificamente na linha de cabeçalho daquela
+    conexão (`"<conn_name>: #N, ESTABLISHED, ..."`), não em qualquer
+    lugar do output."""
+    import re
+
+    pattern = re.compile(rf"^{re.escape(conn_name)}: #\d+, ESTABLISHED,", re.MULTILINE)
     charon_pid = find_charon_pid(netns)
     if charon_pid is None:
         return False
@@ -263,7 +276,7 @@ def wait_for_sa_established(netns: str, conn_name: str, timeout_seconds: float =
              "swanctl", "--list-sas"],
             capture_output=True, text=True,
         )
-        if f"{conn_name}: " in result.stdout and "ESTABLISHED" in result.stdout:
+        if pattern.search(result.stdout):
             return True
         time.sleep(0.5)
     return False

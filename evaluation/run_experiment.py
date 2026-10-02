@@ -106,32 +106,43 @@ def _build_smo() -> tuple[SmoCore, SchedulerCore, KeyStore]:
 
 
 def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_seconds: int) -> str:
+    """**Achado real rodando a primeira campanha longa**: `module.setup()`
+    rodava FORA do `try/finally` — uma falha de setup (ex: a conexão
+    estática do Cenário 1 não estabelecer) pulava o `teardown()` (lab
+    fica com configuração parcial pro próximo cenário) E, sem nenhum
+    try/except no laço principal (`main()`), matava o processo inteiro —
+    uma campanha de 5 cenários × 10 iterações × 5min foi interrompida na
+    primeira falha de UM cenário, perdendo todo o resto já enfileirado.
+    Agora: setup/teardown sempre pareados, e `main()` captura falhas por
+    execução e segue pra próxima em vez de abortar a campanha toda."""
     module = importlib.import_module(SCENARIOS[scenario_key])
     run_id = f"{module.NAME}-{iteration:03d}-{uuid.uuid4().hex[:8]}"
     log_path = RESULTS_DIR / f"{run_id}.jsonl"
     instrumentation.configure(log_path, run_id)
 
-    print(f"[{run_id}] setup...")
-    module.setup()
-
     smo = scheduler = store = None
     rotation_driver = None
-    policy = getattr(module, "scheduling_policy", None)
-    if policy is not None:
-        smo, scheduler, store = _build_smo()
-        scheduler.set_policy(policy)
-        rotation_driver = RotationDriver(smo, scheduler, check_interval_seconds=10.0)
-
-    charon_pid = find_charon_pid("cu-ns")
-    pids = {"experiment": __import__("os").getpid()}
-    if charon_pid is not None:
-        pids["charon"] = charon_pid
-
-    xfrm_poller = XfrmStatePoller("cu-ns", interval_seconds=0.5)
-    classification_poller = ClassificationStatsPoller("cu-ns", interval_seconds=0.5)
-    resource_poller = ResourcePoller(pids, interval_seconds=1)
+    xfrm_poller = classification_poller = resource_poller = None
 
     try:
+        print(f"[{run_id}] setup...")
+        module.setup()
+
+        policy = getattr(module, "scheduling_policy", None)
+        if policy is not None:
+            smo, scheduler, store = _build_smo()
+            scheduler.set_policy(policy)
+            rotation_driver = RotationDriver(smo, scheduler, check_interval_seconds=10.0)
+
+        charon_pid = find_charon_pid("cu-ns")
+        pids = {"experiment": __import__("os").getpid()}
+        if charon_pid is not None:
+            pids["charon"] = charon_pid
+
+        xfrm_poller = XfrmStatePoller("cu-ns", interval_seconds=0.5)
+        classification_poller = ClassificationStatsPoller("cu-ns", interval_seconds=0.5)
+        resource_poller = ResourcePoller(pids, interval_seconds=1)
+
         print(f"[{run_id}] warm-up ({warmup_seconds}s, descartado da análise)...")
         time.sleep(warmup_seconds)
 
@@ -154,15 +165,22 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
 
         emit("run_window_end", scenario=module.NAME)
     finally:
-        xfrm_poller.stop()
-        classification_poller.stop()
-        resource_poller.stop()
+        if xfrm_poller is not None:
+            xfrm_poller.stop()
+        if classification_poller is not None:
+            classification_poller.stop()
+        if resource_poller is not None:
+            resource_poller.stop()
         if rotation_driver is not None:
             rotation_driver.stop()
         if store is not None:
             store.close()
         print(f"[{run_id}] teardown...")
-        module.teardown()
+        try:
+            module.teardown()
+        except Exception:
+            print(f"[{run_id}] teardown também falhou — lab pode estar em estado parcial, confira manualmente")
+            raise
         instrumentation.reset()
 
     return str(log_path)
@@ -170,7 +188,10 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--scenario", choices=[*SCENARIOS.keys(), "all"], default="3")
+    parser.add_argument(
+        "--scenario", default="3",
+        help="um cenário (ex: 3), 'all' (todos), ou uma lista separada por vírgula (ex: 1,2,3,4)",
+    )
     parser.add_argument("--iterations", type=int, default=10, help="repetições por cenário (default: 10)")
     parser.add_argument("--duration", type=int, default=300, help="segundos de coleta por execução (default: 300)")
     parser.add_argument("--warmup", type=int, default=10, help="segundos descartados no início de cada execução")
@@ -178,16 +199,36 @@ def main() -> int:
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    scenario_keys = list(SCENARIOS.keys()) if args.scenario == "all" else [args.scenario]
+    if args.scenario == "all":
+        scenario_keys = list(SCENARIOS.keys())
+    else:
+        scenario_keys = [s.strip() for s in args.scenario.split(",")]
+        for key in scenario_keys:
+            if key not in SCENARIOS:
+                parser.error(f"cenário desconhecido: {key!r} (válidos: {', '.join(SCENARIOS)}, ou 'all')")
     log_paths = []
+    failures = []
     for key in scenario_keys:
         for i in range(1, args.iterations + 1):
             print(f"=== cenário {key}, iteração {i}/{args.iterations} ===")
-            log_paths.append(run_once(key, i, args.duration, args.warmup))
+            try:
+                log_paths.append(run_once(key, i, args.duration, args.warmup))
+            except Exception as exc:
+                # uma falha numa execução não pode derrubar a campanha
+                # inteira (achado real: já aconteceu, ver docstring de
+                # run_once) — loga e segue pra próxima.
+                print(f"=== FALHOU: cenário {key}, iteração {i}: {exc!r} — seguindo pra próxima ===")
+                failures.append((key, i, repr(exc)))
 
     print("\nArquivos gerados:")
     for path in log_paths:
         print(f"  {path}")
+
+    if failures:
+        print(f"\n{len(failures)} execução(ões) falharam (seguiu pras próximas mesmo assim):")
+        for key, i, err in failures:
+            print(f"  cenário {key}, iteração {i}: {err}")
+        return 1
     return 0
 
 

@@ -20,6 +20,7 @@ from scheduler.models import (
     utcnow,
 )
 from scheduler.policy import compute_risk, sort_key
+from evaluation.instrumentation import emit
 
 
 def _new_task_id() -> str:
@@ -74,13 +75,30 @@ class SchedulerCore:
         return tasks
 
     def get_next_task(self) -> Optional[Task]:
+        """O ponto de instrumentação da "decisão do scheduler" (ver
+        CENARIOS-TESTE-AVALIACAO.md seção 6) é aqui, não dentro de
+        `compute_risk` — `compute_risk` roda a cada reordenação da fila
+        (inclusive em `peek_queue`, só pra observabilidade), o que geraria
+        ruído sem sinal; o evento que interessa pro pipeline de avaliação
+        é qual tarefa foi de fato escolhida, com qual risco, sob qual
+        política."""
         with self._lock:
             ordered = self._ordered_tasks()
             if not ordered:
                 return None
             next_task = ordered[0]
             del self._tasks[next_task.task_id]
-            return next_task
+        emit(
+            "scheduler_decision",
+            task_id=next_task.task_id,
+            slice=next_task.slice.value,
+            interface=next_task.interface.value,
+            priority=next_task.priority.value,
+            risk_score=next_task.risk_score,
+            policy=self._policy.value,
+            queue_depth_after=len(self._tasks),
+        )
+        return next_task
 
     def peek_queue(self, limit: int = 0) -> list[Task]:
         with self._lock:

@@ -48,6 +48,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from kms.models import SliceType
+from evaluation.instrumentation import timed
 
 PSK_LENGTH_BYTES = 32
 _QUANTUM_COMPONENT_LENGTH_BYTES = 32
@@ -98,18 +99,19 @@ def generate_hybrid_material(slice: SliceType) -> HybridMaterial:
     existe, é usado bruto — é assim que o PPK da Fase 4 já foi validado
     contra o laboratório real (ver `swanctl` secrets, que carregam o
     valor de `openssl rand -hex 32` direto, sem KDF por cima)."""
-    kem_algorithm = _KEM_BY_SLICE[slice]
-    ml_kem_secret = _ml_kem_shared_secret(kem_algorithm)
+    with timed("keygen_pqc", slice=slice.value):
+        kem_algorithm = _KEM_BY_SLICE[slice]
+        ml_kem_secret = _ml_kem_shared_secret(kem_algorithm)
 
-    has_quantum_component = slice is SliceType.URLLC
-    ppk = secrets.token_bytes(_QUANTUM_COMPONENT_LENGTH_BYTES) if has_quantum_component else None
+        has_quantum_component = slice is SliceType.URLLC
+        ppk = secrets.token_bytes(_QUANTUM_COMPONENT_LENGTH_BYTES) if has_quantum_component else None
 
-    psk = HKDF(
-        algorithm=hashes.SHA384(),
-        length=PSK_LENGTH_BYTES,
-        salt=None,
-        info=_HKDF_INFO,
-    ).derive(ml_kem_secret)
+        psk = HKDF(
+            algorithm=hashes.SHA384(),
+            length=PSK_LENGTH_BYTES,
+            salt=None,
+            info=_HKDF_INFO,
+        ).derive(ml_kem_secret)
 
     return HybridMaterial(
         psk=psk,

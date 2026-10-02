@@ -10,16 +10,23 @@ Leia nessa ordem:
 3. [`docs/ARQUITETURA-ORQUESTRADOR.md`](docs/ARQUITETURA-ORQUESTRADOR.md) — a arquitetura do orquestrador em si (SMO, Scheduler, KMS, IPsec Agent, Admin API) e as decisões de design já fechadas.
 4. [`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](docs/ARQUITETURA-PROTOTIPO-COMPLETA.md) — protótipo de nó único (sniffer PFCP + eBPF + XFRM/strongSwan) visando SBRC 2027; concretiza, num escopo menor, as mesmas decisões do documento acima.
 5. [`docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md`](docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md) — detalhamento do sniffer PFCP do protótipo acima, com os achados de uma captura real já validada nesta VM.
+6. [`docs/CENARIOS-TESTE-AVALIACAO.md`](docs/CENARIOS-TESTE-AVALIACAO.md) — cenários e métricas da avaliação experimental (Risk-Aware Scheduler vs. baselines), implementados em `evaluation/`.
 
 ## Estrutura
 
 ```
 docs/            Os cinco documentos acima.
-orchestrator/     Código do orquestrador distribuído (contratos gRPC + KMS +
-                   IPsec Agent implementados; Scheduler/SMO/Admin API ainda não).
-prototype/        Código do protótipo de nó único pro SBRC 2027 (sniffer PFCP
-                   implementado; classificador eBPF ainda não — reaproveita
-                   orchestrator/ipsec_agent/ como Módulo 4).
+orchestrator/     Código do orquestrador distribuído — contratos gRPC, KMS,
+                   IPsec Agent, Scheduler (fórmula de risco) e SMO
+                   implementados e testados; Admin API avaliada e
+                   deliberadamente não implementada (ver orchestrator/README.md).
+prototype/        Código do protótipo de nó único pro SBRC 2027 — sniffer
+                   PFCP, classificador eBPF/TC e as 5 fases (Baseline até
+                   Rotação dinâmica) implementadas e validadas contra o
+                   laboratório real (ver prototype/README.md).
+evaluation/       Pipeline de coleta experimental (cenários 0-4, métricas,
+                   análise) pra avaliação do Risk-Aware Scheduler — ver
+                   evaluation/README.md.
 lab/              Configs e scripts do laboratório OAI+Open5GS+IPsec que os
                    docs acima descrevem — não é código do orquestrador, é a
                    infraestrutura que ele vai gerenciar.
@@ -93,3 +100,20 @@ calcula o risco contra um SLA por fatia, e dispara a rotação (`swanctl
 --rekey`) na de maior risco. Rodado contra o laboratório de verdade,
 escolheu a URLLC corretamente (risco muito acima das outras duas) e
 confirmou a rotação via mudança real de SPI.
+
+## Estado do pipeline de avaliação experimental
+
+Ver `evaluation/README.md` pro estado detalhado. Resumo: os 5 cenários
+(baseline nativo, PQC estático, diferenciado+EDF, risco, contenção), a
+instrumentação (decisão do scheduler, geração de chave PQC, confirmação
+de SPI) e os coletores (estado do kernel IPsec, classificação por fatia,
+CPU/memória, latência/throughput) estão implementados e **validados
+contra o laboratório real** — rotação real acontecendo durante a coleta,
+isolamento entre fatias confirmado nos números (eMBB/mIoT com
+correspondência exata, URLLC a 2 pacotes por efeito de amostragem). Oito
+achados reais corrigidos no processo (ver a lista completa no README do
+pipeline) — de um bug silencioso no `pidstat` a uma falha genuína no
+laço de rotação que acumulava fila sem limite. As campanhas estatísticas
+completas (10 execuções × 5 min por cenário, como a metodologia pede)
+ainda não foram rodadas — isso fica pro próximo passo, usando o
+`run_experiment.py --iterations N` já pronto.

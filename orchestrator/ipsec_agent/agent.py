@@ -19,6 +19,7 @@ from typing import Optional
 from ipsec_agent.config import CONNECTIONS, ConnectionConfig
 from ipsec_agent.models import ApplyResult, ConnectionName, ConnectionState, ConnectionStatus
 from ipsec_agent.vici_client import ViciConnection
+from evaluation.instrumentation import timed
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +97,10 @@ class IpsecAgentCore:
                 rekey_triggered_at = datetime.now(timezone.utc)
                 initiator.rekey(cfg.conn_name, reauth=True)
 
-                established_at = self._wait_for_fresh_sa(
-                    initiator, cfg.conn_name, after=rekey_triggered_at
-                )
+                with timed("spi_confirmation", connection=connection.value, key_id=key_id):
+                    established_at = self._wait_for_fresh_sa(
+                        initiator, cfg.conn_name, after=rekey_triggered_at
+                    )
                 if established_at is None:
                     return ApplyResult(
                         success=False,

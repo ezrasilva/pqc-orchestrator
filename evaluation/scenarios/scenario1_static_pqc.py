@@ -13,6 +13,15 @@ compartilhado com mais nada. F1 continua intocado (clássico, fora do
 escopo deste cenário — o documento fala em "todo o tráfego do enlace",
 e o F1 é um enlace separado do N2/N3).
 
+**Achado real migrando pro testbed OCUDU (strongSwan 6.0.4)**: a
+sintaxe de proposta PQC mudou — ML-KEM entra como round HÍBRIDO
+adicional via prefixo `ke1_` junto de um grupo clássico de base
+(`modp2048`), não mais como único método de KE. A sintaxe antiga
+(`...-mlkem768` sem `ke1_`/`modp2048`) dava `NO_PROPOSAL_CHOSEN` nesta
+versão — confirmado isolando outras duas causas reais antes de achar
+essa (mount órfão do bind do charon, endereços não espelhados entre os
+dois lados; ver `~/oai-lab-conf/swanctl-cu/conf.d/connections.conf`).
+
 **Achado real rodando a primeira campanha longa**: a primeira versão
 usava `10.96.0.1`/`10.96.0.2` — fora do `/24` que já tem rota automática
 via o endereço base `10.97.0.1/24` de `veth-cu-n2`. Sem rota explícita
@@ -43,20 +52,12 @@ NAME = "cenario1_pqc_estatico"
 FIXED_REKEY_INTERVAL_SECONDS = 30  # ver CENARIOS-TESTE-AVALIACAO.md seção 1
 CONN_NAME = "n2n3-static-pqc-cu-edge"
 
-# Versões do ipsec.conf clássico SEM n2-cu-edge — só F1 (CU) / nada
-# (edge) continuam, pra não competir com a conexão estática pelo mesmo
-# tráfego de controle (ver achado documentado em setup()).
+# Versão do ipsec.conf clássico SEM n2-cu-edge — pra não competir com a
+# conexão estática pelo mesmo tráfego de controle (ver achado
+# documentado em setup()). Sem F1 nesta topologia (gNB combinado CU+DU
+# num processo só, ver ~/ocudu-lab/) — fica só o stanza de config.
 _CU_CLASSIC_WITHOUT_N2 = """config setup
     charondebug="ike 1, knl 1, cfg 1"
-
-conn f1-cu-du
-    type=transport
-    authby=psk
-    left=10.99.0.1
-    right=10.99.0.2
-    ike=aes256-sha256-modp2048
-    esp=aes256-sha256
-    auto=start
 """
 
 _EDGE_CLASSIC_WITHOUT_N2 = """config setup
@@ -67,14 +68,14 @@ _CU_CONNECTIONS_CONF = f"""connections {{
     {CONN_NAME} {{
         local_addrs = 10.97.0.41
         remote_addrs = 10.97.0.42
-        proposals = aes256gcm16-prfsha256-mlkem768
+        proposals = aes256gcm16-prfsha256-modp2048-ke1_mlkem768
         local {{ auth = psk }}
         remote {{ auth = psk }}
         children {{
             {CONN_NAME} {{
                 local_ts = 10.98.0.98/32,172.18.0.99/32
                 remote_ts = 10.98.0.0/24,172.18.0.0/16
-                esp_proposals = aes256gcm16-mlkem768
+                esp_proposals = aes256gcm16-ke1_mlkem768
                 mode = tunnel
                 start_action = start
             }}
@@ -220,13 +221,13 @@ def teardown() -> None:
     subprocess.run(["ip", "netns", "exec", "cu-ns", "ip", "addr", "del", "10.97.0.41/32", "dev", "veth-cu-n2"], capture_output=True)
     subprocess.run(["ip", "netns", "exec", "5gc-edge-ns", "ip", "addr", "del", "10.97.0.42/32", "dev", "veth-edge-cu"], capture_output=True)
 
-    lab_control.restart_ipsec_lab(("cu-ns", "du-ns", "5gc-edge-ns"))
+    lab_control.restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
     lab_control.load_and_initiate_n3()
 
 
 def traffic_plan() -> list[dict]:
     return [
-        {"label": "urllc", "iface": "oaitun_ue1p2", "profile": "latency"},
-        {"label": "embb", "iface": "oaitun_ue1", "profile": "throughput_tcp"},
-        {"label": "miot", "iface": "oaitun_ue1p3", "profile": "throughput_udp_sparse"},
+        {"label": "urllc", "netns": "ue-urllc", "iface": "tun_srsue", "dest": "10.45.1.1", "profile": "latency"},
+        {"label": "embb", "netns": "ue-embb", "iface": "tun_srsue", "dest": "10.45.0.1", "profile": "throughput_tcp"},
+        {"label": "miot", "netns": "ue-miot", "iface": "tun_srsue", "dest": "10.45.2.1", "profile": "throughput_udp_sparse"},
     ]

@@ -12,9 +12,9 @@ NAME = "cenario0_baseline_nativo"
 
 
 def setup() -> None:
-    for ns in ("cu-ns", "du-ns", "5gc-edge-ns"):
+    for ns in ("cu-ns", "5gc-edge-ns"):
         lab_control.kill_ipsec_instance(ns)
-    for ns in ("cu-ns", "du-ns", "5gc-edge-ns"):
+    for ns in ("cu-ns", "5gc-edge-ns"):
         lab_control.flush_xfrm(ns)
     # mesmo sem IPsec, o classification_snapshot (mangle OUTPUT) continua
     # sendo coletado por consistência entre cenários — recaptura os
@@ -24,17 +24,18 @@ def setup() -> None:
 
 
 def teardown() -> None:
-    """Restaura o estado padrão (F1 + N2 clássicos + 3 N3 PQC/PPK via
-    vici) pros próximos cenários — mesmo procedimento do RUNBOOK."""
-    lab_control.restart_ipsec_lab(("cu-ns", "du-ns", "5gc-edge-ns"))
+    """Restaura o estado padrão (N2 clássico + 3 N3 PQC/PPK via vici)
+    pros próximos cenários. Sem F1 nesta topologia (gNB combinado CU+DU
+    num processo só, ver ~/ocudu-lab/) — só cu-ns e 5gc-edge-ns."""
+    lab_control.restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
     lab_control.load_and_initiate_n3()
 
 
 def traffic_plan() -> list[dict]:
-    """Mesmas três fatias, mesmas interfaces/endereços de sempre — só
-    sem cifragem nenhuma no caminho."""
+    """Mesmas três fatias, mesmos netns/interfaces/endereços de sempre —
+    só sem cifragem nenhuma no caminho."""
     return [
-        {"label": "urllc", "iface": "oaitun_ue1p2", "profile": "latency"},
-        {"label": "embb", "iface": "oaitun_ue1", "profile": "throughput_tcp"},
-        {"label": "miot", "iface": "oaitun_ue1p3", "profile": "throughput_udp_sparse"},
+        {"label": "urllc", "netns": "ue-urllc", "iface": "tun_srsue", "dest": "10.45.1.1", "profile": "latency"},
+        {"label": "embb", "netns": "ue-embb", "iface": "tun_srsue", "dest": "10.45.0.1", "profile": "throughput_tcp"},
+        {"label": "miot", "netns": "ue-miot", "iface": "tun_srsue", "dest": "10.45.2.1", "profile": "throughput_udp_sparse"},
     ]

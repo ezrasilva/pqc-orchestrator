@@ -49,10 +49,7 @@ SCENARIOS = {
     "4": "evaluation.scenarios.scenario4_contention",
 }
 
-UE_NETNS = "du-ns"
-
-
-def _resolve_bind_ip(iface: str, netns: str = UE_NETNS) -> str:
+def _resolve_bind_ip(iface: str, netns: str) -> str:
     out = subprocess.run(
         ["ip", "netns", "exec", netns, "ip", "-4", "-o", "addr", "show", iface],
         capture_output=True, text=True, check=True,
@@ -64,16 +61,20 @@ def _resolve_bind_ip(iface: str, netns: str = UE_NETNS) -> str:
 
 
 def _run_one_probe(probe: dict, duration_seconds: int) -> None:
-    label, iface, profile = probe["label"], probe["iface"], probe["profile"]
-    bind_ip = _resolve_bind_ip(iface)
+    # `netns`/`dest` por sonda (não um UE_NETNS global) desde a migração
+    # pro testbed OCUDU+srsUE: cada fatia é um processo UE separado, em
+    # seu próprio netns, com seu próprio gateway/subnet — ver
+    # `lab_control._SLICE_NETNS_IFACE`/`_SLICE_DEST`.
+    label, netns, iface, dest, profile = probe["label"], probe["netns"], probe["iface"], probe["dest"], probe["profile"]
+    bind_ip = _resolve_bind_ip(iface, netns)
     if profile == "latency":
         count = max(1, int(duration_seconds / 0.1))
-        run_latency_probe(UE_NETNS, iface, "10.45.0.1", count=count, interval_seconds=0.1, label=label)
+        run_latency_probe(netns, iface, dest, count=count, interval_seconds=0.1, label=label)
     elif profile == "throughput_tcp":
-        run_throughput_probe(UE_NETNS, bind_ip, duration_seconds=duration_seconds, udp=False, label=label)
+        run_throughput_probe(netns, bind_ip, dest=dest, duration_seconds=duration_seconds, udp=False, label=label)
     elif profile == "throughput_udp_sparse":
         run_throughput_probe(
-            UE_NETNS, bind_ip, duration_seconds=duration_seconds, udp=True, bitrate="10K", label=label
+            netns, bind_ip, dest=dest, duration_seconds=duration_seconds, udp=True, bitrate="10K", label=label
         )
     else:
         raise ValueError(f"profile desconhecido: {profile}")
@@ -196,6 +197,14 @@ def main() -> int:
     parser.add_argument("--duration", type=int, default=300, help="segundos de coleta por execução (default: 300)")
     parser.add_argument("--warmup", type=int, default=10, help="segundos descartados no início de cada execução")
     args = parser.parse_args()
+
+    # Achado real: uma campanha inteira (50 execuções) rodou contaminada
+    # por um DU/CU/charon zumbis de dois dias atrás, sem que nada
+    # avisasse — falha alto aqui, antes do primeiro cenário, em vez de
+    # descobrir só depois de coletar tudo (ver lab_control.py).
+    print("checando se há processos zumbis antes de começar...")
+    lab_control.assert_no_stray_processes()
+    print("ok, nenhum processo a mais detectado.")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 

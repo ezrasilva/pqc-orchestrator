@@ -153,27 +153,55 @@ def analyze_isolation(df: pd.DataFrame, output_dir: Path) -> None:
     desde o início da regra) deve corresponder ao total que as SAs
     daquele mark efetivamente carregaram (xfrm_snapshot) — métrica B.3.
 
-    **Achado corrigindo isto**: uma rotação de chave cria uma SA NOVA
-    (contador zerado) pro mesmo mark — pegar só o `max` de "packets"
-    agrupado por mark comparava o contador cumulativo do iptables contra
-    o pico de UMA SA só, nunca batendo quando havia rotação no meio da
-    janela (óbvio em retrospecto, mas só ficou claro rodando contra
-    tráfego real com rotação acontecendo). Corrigido: soma o `max` de
-    cada SPI individual (cada SA só cresce durante sua própria vida) e
-    só então agrupa por mark."""
-    classification = _subset(df, "classification_snapshot", ["scenario", "mark", "packets"]).dropna(subset=["mark"])
-    xfrm = _subset(df, "xfrm_snapshot", ["scenario", "mark", "spi", "packets"]).dropna(subset=["mark"])
+    **Achado corrigindo isto (primeira vez)**: uma rotação de chave cria
+    uma SA NOVA (contador zerado) pro mesmo mark — pegar só o `max` de
+    "packets" agrupado por mark comparava o contador cumulativo do
+    iptables contra o pico de UMA SA só, nunca batendo quando havia
+    rotação no meio da janela. Corrigido: soma o `max` de cada SPI
+    individual (cada SA só cresce durante sua própria vida) e só então
+    agrupa por mark.
+
+    **Achado corrigindo isto (segunda vez, rodando uma campanha real
+    com múltiplas iterações)**: faltava `run_id` no agrupamento — cada
+    iteração chama `setup()`, que reinicia o IPsec (zera os contadores
+    `iptables mangle`) E recria as SAs do zero (SPIs novos). Agrupar só
+    por `scenario` (sem `run_id`) misturava o contador do iptables de
+    UMA iteração (que só viu o tráfego daquela execução) contra a soma
+    de SPIs de TODAS as iterações daquele cenário na campanha (que
+    cresce a cada iteração nova) — `match` dava `False` sempre, mesmo
+    com isolamento perfeito em cada execução individual, só por um erro
+    de agregação. Corrigido: calcula o match POR EXECUÇÃO (`run_id`) e
+    só agrega o RESUMO (quantas bateram) por cenário."""
+    classification = _subset(df, "classification_snapshot", ["scenario", "run_id", "mark", "packets"]).dropna(subset=["mark"])
+    xfrm = _subset(df, "xfrm_snapshot", ["scenario", "run_id", "mark", "spi", "packets"]).dropna(subset=["mark"])
     if classification.empty or xfrm.empty:
         print("(sem amostras suficientes de classificação/xfrm pra checar isolamento)")
         return
 
-    cls_last = classification.groupby(["scenario", "mark"])["packets"].max().rename("classified_packets")
-    per_spi_peak = xfrm.groupby(["scenario", "mark", "spi"])["packets"].max()
-    xfrm_total = per_spi_peak.groupby(["scenario", "mark"]).sum().rename("sa_packets_total")
+    cls_last = classification.groupby(["scenario", "run_id", "mark"])["packets"].max().rename("classified_packets")
+    per_spi_peak = xfrm.groupby(["scenario", "run_id", "mark", "spi"])["packets"].max()
+    xfrm_total = per_spi_peak.groupby(["scenario", "run_id", "mark"]).sum().rename("sa_packets_total")
     joined = pd.concat([cls_last, xfrm_total], axis=1).reset_index()
-    joined["match"] = joined["classified_packets"] == joined["sa_packets_total"]
+    # N/A (nao NaN=erro) quando o cenario nao tem SA com mark pra comparar
+    # (cenario0 sem IPsec, cenario1 com 1 tunel so sem diferenciacao por
+    # mark) — B.3 so se aplica a cenarios com SAs reais por fatia.
+    applicable = joined["sa_packets_total"].notna()
+    # tolerancia de 2 pacotes — efeito de borda ja documentado da
+    # amostragem do xfrm_snapshot a 500ms (o ultimo pacote da janela
+    # pode nao ter sido capturado pela ultima amostra antes do fim da
+    # coleta, nao e vazamento de isolamento).
+    diff = (joined["classified_packets"] - joined["sa_packets_total"]).abs()
+    joined["match"] = (applicable & (diff <= 2)).astype("boolean")
+    joined.loc[~applicable, "match"] = pd.NA
     joined.to_csv(output_dir / "isolation.csv", index=False)
     print(joined.to_string(index=False))
+
+    summary = joined[applicable].groupby(["scenario", "mark"])["match"].agg(["sum", "count"]).rename(
+        columns={"sum": "execucoes_ok", "count": "execucoes_total"}
+    )
+    summary.to_csv(output_dir / "isolation_summary.csv")
+    print("\n--- resumo por cenário/mark (so cenarios com SA por fatia) ---")
+    print(summary.to_string())
 
 
 def analyze_resources(df: pd.DataFrame, output_dir: Path) -> None:

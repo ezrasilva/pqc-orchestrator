@@ -186,16 +186,29 @@ _SLICE_NETNS_IFACE = {
 # Gateway/dest por fatia (N6 da UPF) — mantido aqui só como referência
 # pros `traffic_plan()` dos cenários (não usado mais internamente neste
 # módulo: a captura de TEID agora lê o log do gNB, não precisa mais de
-# ping/reply nenhum). ACHADO REAL: o UPF (Open5GS) só tem UM endereço de
-# verdade na `ogstun` (10.45.0.1/16, cobre o /16 inteiro) — pingar
-# 10.45.0.1 só responde quando a sessão é da própria sub-rede dela
-# (eMBB); URLLC/mIoT (sub-redes .1.x/.2.x) não recebem resposta, mesmo
-# com o tráfego de uplink fluindo normalmente (confirmado via contador
-# de bytes da SA) — parece assimetria real de roteamento de retorno no
-# UPF entre sessões PDU de sub-rede diferente, não investigada a fundo.
-# Isso afeta a métrica de latência real da URLLC (profile "latency" no
-# traffic_plan) até ser corrigido — throughput (iperf3, embb/miot) não
-# depende de ping e não é afetado.
+# ping/reply nenhum).
+#
+# ACHADO REAL + CORRIGIDO: apesar de `smf.yaml` definir um gateway
+# PRÓPRIO por DNN/fatia (10.45.0.1 embb, 10.45.1.1 urllc, 10.45.2.1
+# miot — ver `session:` em `~/pqc-oran-local-lab/5gc/config/smf.yaml`),
+# o UPF (Open5GS) só vincula o PRIMEIRO como endereço local de verdade
+# na `ogstun`. Pings pros outros dois viravam ICMP REDIRECT, não echo
+# reply (confirmado com tcpdump em `tun_srsue`: `10.45.0.1 > 10.45.1.9:
+# ICMP redirect 10.45.1.1 to host 10.45.1.1`) — o kernel tenta
+# "encaminhar" em vez de responder, já que o endereço não é dele.
+# `ping` conta isso como 100% de perda mesmo com o plano de usuário
+# funcionando normalmente. Corrigido rodando
+# `~/pqc-oran-local-lab/5gc/fix-upf-gateways.sh` (`ip addr add` dos 2
+# gateways que faltam, no MESMO escopo /16 do que já existe — testado:
+# /24 sobrepondo o /16 quebra o roteamento de TODAS as fatias, não só
+# da que foi adicionada). Efêmero — precisa rodar de novo depois de
+# qualquer recreate do container `5gc-upf-1`.
+#
+# Achado relacionado: cada UE só tem rota local pra PRÓPRIA sub-rede
+# /24 (não o /16 inteiro) — `iperf3 -c 10.45.0.1` dá "Network is
+# unreachable" quando rodado de dentro de `ue-urllc`/`ue-miot`. Por
+# isso throughput TAMBÉM precisa do dest específico de cada fatia
+# aqui, não um endereço único pra todas (diferente do lab antigo).
 _SLICE_DEST = {"urllc": "10.45.1.1", "embb": "10.45.0.1", "miot": "10.45.2.1"}
 
 
@@ -271,15 +284,59 @@ def assert_no_stray_processes() -> None:
 
 GNB_COMBINED_LOG = Path("/tmp/gnb_combined.log")
 
-# ordem de lancamento do watchdog (urllc, embb, miot) == indice interno
-# `ue=N` do gNB (confirmado por correlacao de timestamp com os logs do
-# SMF: `docker logs 5gc-smf-1 | grep "UE SUPI"` bate exatamente com a
-# ordem desta lista, em duas rodadas distintas desta sessao — ver
-# observability/README.md).
-_SLICE_UE_INDEX = {"urllc": 0, "embb": 1, "miot": 2}
+# IMSI (fixo em cada ue_<fatia>.conf) -> fatia, pelo prefixo -011/-012/-013
+# (ver ~/ocudu-lab/ue_*.conf). Único jeito confiável de identificar a
+# fatia: o índice `ue=N` do gNB NÃO é estável entre restarts.
+_IMSI_SLICE = {"001010000000011": "urllc", "001010000000012": "embb", "001010000000013": "miot"}
 
 
-def _capture_uplink_teid_from_gnb_log(slice: str) -> str:
+def _resolve_slice_ue_index() -> dict[str, int]:
+    """**Achado real, crítico, corrigindo um bug do port**: a primeira
+    versão deste módulo assumia um `_SLICE_UE_INDEX` FIXO
+    (`{"urllc": 0, "embb": 1, "miot": 2}`), por analogia com a ordem de
+    lançamento do `watchdog_start.sh`. Errado — o índice interno `ue=N`
+    do gNB reflete a ordem em que cada srsUE *vence a corrida de Random
+    Access no rádio*, não a ordem do script. Confirmado ao vivo: numa
+    sincronização a URLLC ganhou `rnti=0x4601` (`ue=0`); numa sincronização
+    anterior na mesma sessão, foi a eMBB quem ganhou esse mesmo RNTI. Usar
+    um índice fixo aplicaria o TEID errado pra fatia errada de forma
+    silenciosa e imprevisível entre execuções.
+
+    A correlação que REALMENTE vale é por **ordem relativa**: a criação de
+    cada sessão no SMF (`UE SUPI[imsi-...] DNN[...]`) e a configuração do
+    GTP-U correspondente no gNB (`ue=N UL teid=...`) são dois passos
+    SEQUENCIAIS do mesmo procedimento de estabelecimento de sessão PDU,
+    por UE — então a 1ª sessão criada no SMF sempre corresponde a `ue=0`,
+    a 2ª a `ue=1`, a 3ª a `ue=2`, **mesmo que qual UE física "ganhou"
+    cada posição mude entre execuções** (confirmado comparando as duas
+    ordens lado a lado, timestamps a poucos ms de distância, consistente
+    nas duas sincronizações observadas nesta sessão)."""
+    # `docker logs` manda pro stderr, não stdout (achado real debugando
+    # este fix) — combina os dois.
+    result = subprocess.run(
+        ["docker", "logs", "--tail", "500", "5gc-smf-1"], capture_output=True, text=True
+    )
+    raw = result.stdout + result.stderr
+    import re
+
+    imsis_in_order = [
+        m.group(1) for m in re.finditer(r"UE SUPI\[imsi-(\d+)\] DNN\[", raw)
+    ][-3:]
+    if len(imsis_in_order) < 3:
+        raise RuntimeError(
+            f"só achei {len(imsis_in_order)} sessão(ões) recente(s) no log do SMF (esperava 3) — "
+            "a pilha RAN sincronizou de verdade? ver /tmp/gnb_combined.log"
+        )
+    slice_ue_index = {}
+    for ue_index, imsi in enumerate(imsis_in_order):
+        slice_name = _IMSI_SLICE.get(imsi)
+        if slice_name is None:
+            raise RuntimeError(f"IMSI {imsi} não reconhecido em _IMSI_SLICE — config da UE mudou?")
+        slice_ue_index[slice_name] = ue_index
+    return slice_ue_index
+
+
+def _capture_uplink_teid_from_gnb_log(slice: str, ue_index: int) -> str:
     """**Substitui a técnica antiga de sniff+ping+offset de byte** (que
     dependia de capturar GTP-U em texto puro em `veth-cu-n2`) — acho real
     migrando pro OCUDU: assim que as SAs N3 sobem (que é exatamente o
@@ -289,13 +346,14 @@ def _capture_uplink_teid_from_gnb_log(slice: str) -> str:
     pacote. O gNB já loga o TEID real de cada sessão (`GTPU PSUP TX
     configured... peer_teid=0x...`) no próprio `/tmp/gnb_combined.log`,
     texto puro, independente do estado do IPsec — mais simples e mais
-    robusto que farejar a rede. Pega a ocorrência MAIS RECENTE pro índice
-    `ue=N` daquela fatia (o log acumula entre restarts)."""
+    robusto que farejar a rede. `ue_index` vem de
+    `_resolve_slice_ue_index()` — NÃO é um índice fixo por fatia (ver lá
+    o porquê). Pega a ocorrência MAIS RECENTE pro índice `ue=N` (o log
+    acumula entre restarts)."""
     import re
 
     if not GNB_COMBINED_LOG.exists():
         raise RuntimeError(f"{GNB_COMBINED_LOG} não existe — gNB rodou pelo menos uma vez?")
-    ue_index = _SLICE_UE_INDEX[slice]
     pattern = re.compile(rf"ue={ue_index} UL teid=(0x[0-9a-f]+): GTPU PSUP TX configured")
     last_teid = None
     with GNB_COMBINED_LOG.open(errors="replace") as f:
@@ -341,26 +399,29 @@ def restart_ran_stack(timeout_seconds: float = 400.0) -> None:
 
 
 def ue_data_plane_healthy(slice: str) -> bool:
-    """**Achado real portando pro testbed OCUDU+srsUE**: diferente do lab
-    antigo, nem todo gateway responde ping aqui — o UPF (Open5GS) só tem
-    UM endereço real configurado na `ogstun` (`10.45.0.1/16`, cobrindo o
-    `/16` inteiro); `10.45.1.1`/`10.45.2.1` nunca foram endereços de
-    verdade, só caem dentro da mesma rota. Testado: `10.45.0.1` responde
-    quando a sessão PDU é da própria sub-rede dela (eMBB, `10.45.0.x`),
-    mas NÃO responde pra sessões de sub-rede diferente (URLLC/mIoT,
-    `10.45.1.x`/`10.45.2.x`) — parece assimetria real de roteamento de
-    retorno no UPF entre sessões PDU, não investigada a fundo ainda (ver
-    `observability/README.md` ou pergunte sobre "achado: ping URLLC/mIoT"
-    antes de confiar na métrica de latência dessas duas fatias). Por
-    isso o health-check usa um sinal 100% local (interface com IP
-    atribuído) em vez de depender de uma resposta ICMP que nem sempre
-    existe."""
+    """Ping de verdade, não só "a interface tem IP" — achado real
+    rodando a campanha: a interface continua com IP mesmo quando o
+    plano de dados fica "preso" depois de mexer no IPsec (mesmo bug já
+    documentado no lab antigo, causa raiz nunca encontrada — reinstalar
+    a SA ou rotacionar a chave às vezes deixa a sessão PDU sem fluir
+    dado novo, plano de controle intacto). Um check puramente local
+    nunca detectaria isso, e sem detectar, `ensure_ue_data_plane` nunca
+    aciona o `restart_ran_stack()` que de fato resolve.
+
+    Só passou a ser seguro usar ping aqui depois de corrigir o bug real
+    do UPF (ver `_SLICE_DEST`/`fix-upf-gateways.sh`): antes do fix,
+    ping pros gateways de URLLC/mIoT SEMPRE dava falso-negativo
+    (virava ICMP redirect, não reply), mesmo com o plano de dados
+    saudável — daí a versão anterior desta função ter trocado pra
+    checagem local. Com o UPF corrigido, ping volta a ser o sinal
+    correto (e mais forte) de saúde real."""
     ue_netns, iface = _SLICE_NETNS_IFACE[slice]
+    dest = _SLICE_DEST[slice]
     result = subprocess.run(
-        ["ip", "netns", "exec", ue_netns, "ip", "-4", "-o", "addr", "show", iface],
+        ["ip", "netns", "exec", ue_netns, "timeout", "4", "ping", "-c", "2", "-I", iface, dest],
         capture_output=True, text=True,
     )
-    return "inet " in result.stdout
+    return "bytes from" in result.stdout
 
 
 def all_slices_data_plane_healthy() -> bool:
@@ -401,7 +462,11 @@ def capture_and_apply_slice_marks(cu_netns: str = "cu-ns") -> dict[str, str]:
     falso negativo (mesmo achado do lab antigo, ver histórico). Garante
     o plano de dados antes de tentar — ver `ensure_ue_data_plane`."""
     ensure_ue_data_plane()
-    teids = {slice: _capture_uplink_teid_from_gnb_log(slice) for slice in _SLICE_NETNS_IFACE}
+    slice_ue_index = _resolve_slice_ue_index()
+    teids = {
+        slice: _capture_uplink_teid_from_gnb_log(slice, slice_ue_index[slice])
+        for slice in _SLICE_NETNS_IFACE
+    }
     apply_slice_marks(cu_netns, teids["urllc"], teids["embb"], teids["miot"])
     return teids
 

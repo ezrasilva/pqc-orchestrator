@@ -71,10 +71,14 @@ def _run_one_probe(probe: dict, duration_seconds: int) -> None:
         count = max(1, int(duration_seconds / 0.1))
         run_latency_probe(netns, iface, dest, count=count, interval_seconds=0.1, label=label)
     elif profile == "throughput_tcp":
-        run_throughput_probe(netns, bind_ip, dest=dest, duration_seconds=duration_seconds, udp=False, label=label)
+        run_throughput_probe(
+            netns, bind_ip, dest=dest, port=probe.get("port", 5201),
+            duration_seconds=duration_seconds, udp=False, label=label,
+        )
     elif profile == "throughput_udp_sparse":
         run_throughput_probe(
-            netns, bind_ip, dest=dest, duration_seconds=duration_seconds, udp=True, bitrate="10K", label=label
+            netns, bind_ip, dest=dest, port=probe.get("port", 5201),
+            duration_seconds=duration_seconds, udp=True, bitrate="10K", label=label,
         )
     else:
         raise ValueError(f"profile desconhecido: {profile}")

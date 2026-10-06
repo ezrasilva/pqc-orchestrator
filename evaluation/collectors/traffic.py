@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import threading
 
 from evaluation.instrumentation import emit
 
@@ -41,23 +42,50 @@ def run_latency_probe(
     """`ping` dentro de `netns`, saindo pela `iface` da UE (ex:
     `oaitun_ue1`/`oaitun_ue1p2`/`oaitun_ue1p3`), emite um evento
     `latency_sample` por pacote respondido. Retorna a lista de RTTs em
-    ms (útil pro chamador reportar perda: `count - len(retorno)`)."""
+    ms (útil pro chamador reportar perda: `count - len(retorno)`).
+
+    **Achado real, crítico pra qualquer análise de correlação temporal**:
+    a versão anterior usava `subprocess.run()` (bloqueante) — esperava
+    os `count * interval_seconds` segundos INTEIROS da sonda terminar,
+    e só então fazia o parse em lote de toda a saída do `ping`, emitindo
+    todas as `latency_sample` em sequência rápida, no final da janela.
+    O `rtt_ms` de cada amostra continuava correto (vem do próprio
+    `ping`), mas o `ts` do evento (quando foi emitido) não tinha
+    NENHUMA relação com o instante real em que aquele ping específico
+    aconteceu — inviabilizava silenciosamente qualquer tentativa de
+    correlacionar um evento de rotação de chave com um pico de latência
+    no mesmo instante (a pergunta nem conseguia ser respondida com os
+    dados coletados, mesmo com RTTs agregados corretos). Corrigido:
+    `Popen` + leitura linha a linha do stdout do `ping`, emitindo cada
+    amostra no momento em que a linha chega (streaming, não lote) —
+    `ts` agora reflete o instante real de cada pacote, com a precisão
+    de quando o Python consegue ler a linha (sub-ms de atraso típico,
+    desprezível face ao RTT medido em dezenas de ms)."""
     # timeout generoso (não só `count * interval`) — `ping` pode demorar
     # além do esperado esperando o timeout de cada pacote perdido, não só
     # o intervalo entre envios.
     timeout_seconds = count * max(interval_seconds, 1.0) + 10
+    proc = subprocess.Popen(
+        ["ip", "netns", "exec", netns, "ping", "-i", str(interval_seconds), "-c", str(count), "-I", iface, dest],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1,
+    )
+    # watchdog de timeout separado — `for line in proc.stdout` bloqueia
+    # esperando a próxima linha, não respeita `timeout=` como
+    # `subprocess.run()`; mata o processo de fora se passar do prazo,
+    # o que fecha o stdout e encerra o loop de leitura naturalmente.
+    killer = threading.Timer(timeout_seconds, proc.kill)
+    killer.start()
+    rtts: list[float] = []
     try:
-        result = subprocess.run(
-            ["ip", "netns", "exec", netns, "ping", "-i", str(interval_seconds), "-c", str(count), "-I", iface, dest],
-            capture_output=True, text=True, timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
-        result = exc
-    rtts = []
-    for match in _PING_RTT_RE.finditer(result.stdout):
-        rtt_ms = float(match.group("rtt_ms"))
-        rtts.append(rtt_ms)
-        emit("latency_sample", label=label, iface=iface, rtt_ms=rtt_ms)
+        for line in proc.stdout:
+            match = _PING_RTT_RE.search(line)
+            if match:
+                rtt_ms = float(match.group("rtt_ms"))
+                rtts.append(rtt_ms)
+                emit("latency_sample", label=label, iface=iface, rtt_ms=rtt_ms)
+    finally:
+        killer.cancel()
+        proc.wait()
     emit(
         "latency_probe_summary", label=label, iface=iface,
         sent=count, received=len(rtts), loss_percent=100.0 * (count - len(rtts)) / count if count else 0.0,

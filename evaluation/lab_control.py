@@ -173,6 +173,19 @@ def apply_slice_marks(netns: str, teid_urllc: str, teid_embb: str, teid_miot: st
     subprocess.run(["bash", str(script), netns, teid_urllc, teid_embb, teid_miot], check=True)
 
 
+def flush_slice_marks(netns: str = "cu-ns") -> None:
+    """Só limpa a tabela `mangle OUTPUT` (sem capturar TEID nem aplicar
+    marks novas) — usado pelos cenários 0/1, que não têm SA por fatia
+    pra comparar contra (B.3 já retorna N/A pros dois, ver
+    `analyze.py`). Sem isso, `classification_snapshot` continuaria
+    reportando contagens baseadas em TEIDs órfãos do cenário anterior
+    (silenciosamente errados, não zero) — pior que simplesmente não ter
+    dado nenhum. Evita a parte frágil (`capture_and_apply_slice_marks`
+    depende de `ensure_ue_data_plane` + sniff de TEID real) nos dois
+    únicos cenários onde ela não contribui pra nenhuma métrica real."""
+    subprocess.run(["ip", "netns", "exec", netns, "iptables", "-t", "mangle", "-F", "OUTPUT"], check=True)
+
+
 # testbed OCUDU+srsUE (ver ~/ocudu-lab/): cada fatia é um processo
 # srsue SEPARADO (nao 3 sessoes PDU multiplexadas por uma UE OAI so),
 # cada um com seu proprio netns (`netns = ue-<fatia>` no .conf) — so a

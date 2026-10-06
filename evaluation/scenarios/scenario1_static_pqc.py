@@ -189,7 +189,12 @@ def setup() -> None:
     if not lab_control.wait_for_sa_established("cu-ns", CONN_NAME):
         raise RuntimeError(f"{CONN_NAME} não estabeleceu — ver logs do charon em cu-ns")
 
-    lab_control.capture_and_apply_slice_marks()
+    # Mesmo raciocínio do cenário 0 (ver scenario0_baseline_native.py):
+    # a única SA aqui (CONN_NAME) não tem mark_in/mark_out nem
+    # diferenciação por fatia — B.3 já retorna N/A pra este cenário de
+    # qualquer forma. Só limpa a tabela mangle, sem a captura de TEID
+    # frágil que não contribui pra nenhuma métrica real aqui.
+    lab_control.flush_slice_marks("cu-ns")
 
     global _rekey_thread
     _rekey_thread_stop.clear()

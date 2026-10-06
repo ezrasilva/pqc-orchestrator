@@ -16,11 +16,13 @@ def setup() -> None:
         lab_control.kill_ipsec_instance(ns)
     for ns in ("cu-ns", "5gc-edge-ns"):
         lab_control.flush_xfrm(ns)
-    # mesmo sem IPsec, o classification_snapshot (mangle OUTPUT) continua
-    # sendo coletado por consistência entre cenários — recaptura os
-    # TEIDs reais pra não ficar com regras órfãs (ver docstring
-    # equivalente em scenario2_diff_no_risk.py).
-    lab_control.capture_and_apply_slice_marks()
+    # Sem SA por fatia neste cenário (sem IPsec nenhum) — a métrica B.3
+    # (isolamento) já retorna N/A aqui de qualquer forma (não há
+    # sa_packets_total pra comparar, ver analyze.py). Só limpa a tabela
+    # mangle (não recaptura TEID real) — mantém classification_snapshot
+    # no mesmo formato dos outros cenários, sem a parte frágil que não
+    # contribui pra nenhuma métrica real aqui (ver lab_control.flush_slice_marks).
+    lab_control.flush_slice_marks("cu-ns")
 
 
 def teardown() -> None:

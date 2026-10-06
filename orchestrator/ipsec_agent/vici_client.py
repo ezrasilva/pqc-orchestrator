@@ -81,3 +81,38 @@ class ViciConnection:
         session = self._session()
         filt = {"ike": conn_name} if conn_name else None
         return list(session.list_sas(filt))
+
+    def listen_rekey(self, tick_timeout: float = 0.05):
+        """**Substitui o polling antigo** (`_wait_for_fresh_sa` em
+        `agent.py` fazia `list_sas` a cada 500ms — achado real: isso
+        dava um tempo medido de ~510ms mesmo quando o rekey real
+        completa em poucos ms, porque o loop só DESCOBRE o resultado
+        no próximo tick do poll, não quando acontece de verdade). O
+        VICI tem um modo de evento (`session.listen()`) que notifica
+        IMEDIATAMENTE quando uma IKE_SA muda de estado.
+
+        **Achado real depurando isto contra o laboratório ao vivo**:
+        `swanctl --rekey --ike` sem `--reauth` dispara `ike-rekey`
+        (payload com wrapper `old`/`new`) — mas `rekey(reauth=True)`,
+        que é o que este Agent SEMPRE usa (precisa validar o PSK novo,
+        ver docstring de `rekey()`), dispara **`ike-updown`**, não
+        `ike-rekey` — payload SEM wrapper (`state` direto na raiz) e
+        com `up: yes` especificamente na entrada da SA que subiu (o
+        charon também emite um `ike-updown` separado, sem `up`, pra
+        deleção da IKE_SA antiga — tudo isolado e confirmado testando
+        os dois casos lado a lado contra o lab real antes de escrever
+        isto). Escuta os dois tipos pra cobrir qualquer modo de rekey
+        que um chamador futuro venha a usar, não só o caminho atual.
+
+        Retorna o generator já "aquecido" (registrado no charon) —
+        quem chama precisa consumir um primeiro tick (ou usar este
+        método, que já faz isso) ANTES de disparar o rekey, senão corre
+        risco de uma corrida: o evento pode acontecer entre "disparei o
+        rekey" e "comecei a escutar", e nesse caso o evento se perde
+        pra sempre (o VICI não republica eventos passados). `tick_timeout`
+        pequeno garante que o registro é confirmado quase
+        instantaneamente, sem bloquear esperando um evento de verdade."""
+        session = self._session()
+        gen = session.listen(["ike-updown", "ike-rekey"], timeout=tick_timeout)
+        next(gen)  # consome o primeiro tick (registro), ver docstring
+        return gen

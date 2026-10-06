@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 # exponencial, levando dezenas de segundos — um timeout curto aqui gera
 # falso negativo (a SA sobe, só que depois do Agent já ter desistido).
 _APPLY_TIMEOUT_SECONDS = 60.0
-_POLL_INTERVAL_SECONDS = 0.5
 
 
 def _parse_state(sa_entry: dict) -> ConnectionState:
@@ -94,13 +93,17 @@ class IpsecAgentCore:
                     responder.load_shared_ppk(cfg.ppk_id, ppk)
                     initiator.load_shared_ppk(cfg.ppk_id, ppk)
 
-                rekey_triggered_at = datetime.now(timezone.utc)
+                # **Achado real**: `initiator.rekey()` é ASSÍNCRONO — só
+                # confirma que o comando foi aceito (~2ms), não espera a
+                # SA nova ficar pronta. Por isso o listener precisa estar
+                # REGISTRADO antes de disparar o rekey (senão corre risco
+                # de perder o evento numa corrida — o VICI não republica
+                # eventos passados). `listen_rekey()` já garante isso.
+                event_stream = initiator.listen_rekey()
                 initiator.rekey(cfg.conn_name, reauth=True)
 
                 with timed("spi_confirmation", connection=connection.value, key_id=key_id):
-                    established_at = self._wait_for_fresh_sa(
-                        initiator, cfg.conn_name, after=rekey_triggered_at
-                    )
+                    established_at = self._wait_for_fresh_sa(event_stream, cfg.conn_name)
                 if established_at is None:
                     return ApplyResult(
                         success=False,
@@ -118,29 +121,53 @@ class IpsecAgentCore:
                 logger.exception("falha aplicando material em %s", cfg.conn_name)
                 return ApplyResult(success=False, error_message=str(exc), applied_at=None)
 
-    def _wait_for_fresh_sa(
-        self, initiator: ViciConnection, conn_name: str, after: datetime
-    ) -> Optional[datetime]:
-        """Espera a SA aparecer ESTABLISHED com `established_since` depois
-        de `after` (o instante em que disparamos o rekey) — não só "baixo
-        o bastante", pra não aceitar por engano a entrada antiga que o
-        VICI ainda não atualizou entre o pedido de rekey e a
-        reautenticação completar."""
+    def _wait_for_fresh_sa(self, event_stream, conn_name: str) -> Optional[datetime]:
+        """**Reescrito — era polling de `list_sas` a cada 500ms, achado
+        real medindo contra a campanha oficial**: o tempo médio ficava
+        consistentemente em ~510ms mesmo quando o reauth completa em
+        poucos ms de verdade — não é limite do kernel/strongSwan, é
+        artefato do polling: o loop só *descobre* o resultado no próximo
+        tick do `sleep(0.5)`, não quando acontece. Confirmado isolando a
+        causa: `initiator.rekey()` é assíncrono (~2ms pra retornar, só
+        confirma que o comando foi aceito), e o VICI tem notificação de
+        evento (`session.listen(["ike-rekey"])`) que entrega o resultado
+        no instante exato em que a SA nova fica ESTABLISHED — testado ao
+        vivo contra o laboratório real antes de reescrever isto.
+
+        `event_stream` vem de `ViciConnection.listen_rekey()`, já
+        registrado ANTES do rekey ser disparado (ver `apply_key_material`
+        — a ordem importa, o VICI não republica eventos passados).
+
+        **Dois formatos de payload, achado real testando os dois ao
+        vivo**: `ike-rekey` vem com wrapper `old`/`new` (`new.state`);
+        `ike-updown` (o que `reauth=True` realmente dispara, ver
+        `listen_rekey()`) vem com `state` direto na raiz do payload, e
+        só conta como "subiu" quando a mensagem tem `up: yes` — o
+        charon também manda um `ike-updown` *sem* `up` pra marcar a
+        IKE_SA antiga sendo deletada durante o mesmo reauth, que não
+        pode ser confundido com sucesso."""
         deadline = time.monotonic() + _APPLY_TIMEOUT_SECONDS
-        # pequena tolerância pro arredondamento de segundos do VICI e
-        # pro tempo entre "rekey disparado" e "primeiro poll"
-        tolerance = timedelta(seconds=_POLL_INTERVAL_SECONDS + 1)
-        while time.monotonic() < deadline:
-            sas = initiator.list_sas(conn_name)
-            sa = _find_sa(sas, conn_name)
-            if sa and _parse_state(sa) is ConnectionState.ESTABLISHED:
-                established_seconds = int(sa.get("established", b"0"))
-                established_since = datetime.now(timezone.utc) - timedelta(
-                    seconds=established_seconds
-                )
-                if established_since >= after - tolerance:
-                    return established_since
-            time.sleep(_POLL_INTERVAL_SECONDS)
+        for event_type, msg in event_stream:
+            if time.monotonic() > deadline:
+                return None
+            if event_type is None:  # tick de timeout do listen(), sem evento — continua esperando
+                continue
+            payload = msg.get(conn_name)
+            if payload is None:
+                continue
+            new = payload.get("new")
+            if new is not None:
+                # formato ike-rekey
+                state = new.get("state") or new.get(b"state")
+            else:
+                # formato ike-updown — só conta se for a SA subindo,
+                # não a antiga sendo derrubada no mesmo reauth
+                up = msg.get("up") or msg.get(b"up")
+                if up not in (b"yes", "yes"):
+                    continue
+                state = payload.get("state") or payload.get(b"state")
+            if state in (b"ESTABLISHED", "ESTABLISHED"):
+                return datetime.now(timezone.utc)
         return None
 
     def get_connection_status(self, connection: ConnectionName) -> ConnectionStatus:

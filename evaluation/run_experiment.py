@@ -49,15 +49,38 @@ SCENARIOS = {
     "4": "evaluation.scenarios.scenario4_contention",
 }
 
-def _resolve_bind_ip(iface: str, netns: str) -> str:
-    out = subprocess.run(
-        ["ip", "netns", "exec", netns, "ip", "-4", "-o", "addr", "show", iface],
-        capture_output=True, text=True, check=True,
-    ).stdout
-    match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out)
-    if not match:
-        raise RuntimeError(f"não achei endereço IPv4 em {iface} dentro de {netns}")
-    return match.group(1)
+def _resolve_bind_ip(iface: str, netns: str, retries: int = 5, retry_delay_seconds: float = 0.3) -> str:
+    """**Achado real rodando a campanha de 30 iterações**: em ~34-43%
+    das execuções, a fatia eMBB (e só ela, nunca urllc/miot) perdia o
+    `throughput_probe_summary` inteiro porque este `ip netns exec`
+    falhava com exit 1 ("device does not exist") num instante
+    específico. Investigado a fundo: não é RLF nem churn de sessão PDU
+    (zero ocorrências nos logs do srsue_embb), e não reproduz isolado
+    (iperf3 real + polling repetido da interface, 150 tentativas, 0
+    falhas) — só acontece sob a carga COMBINADA da campanha inteira (3
+    sondas simultâneas + pollers de kernel a cada 0.5-1s + rotation
+    driver), sugerindo contenção de recursos (fork/exec) no pico de
+    carga, não um problema de RF real. Como a condição é confirmada
+    transitória (nunca persiste — a mesma interface sempre resolve
+    normalmente segundos depois), a correção correta é absorver a
+    transitoriedade com retry, não impedir a perda de dado tratando o
+    sintoma no coletor."""
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        try:
+            out = subprocess.run(
+                ["ip", "netns", "exec", netns, "ip", "-4", "-o", "addr", "show", iface],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out)
+            if not match:
+                raise RuntimeError(f"não achei endereço IPv4 em {iface} dentro de {netns}")
+            return match.group(1)
+        except subprocess.CalledProcessError as exc:
+            last_error = exc
+            if attempt < retries - 1:
+                time.sleep(retry_delay_seconds)
+    raise RuntimeError(f"não resolvi IPv4 em {iface} dentro de {netns} após {retries} tentativas") from last_error
 
 
 def _run_one_probe(probe: dict, duration_seconds: int) -> None:

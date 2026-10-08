@@ -77,7 +77,7 @@ _CU_CONNECTIONS_CONF = f"""connections {{
                 remote_ts = 10.98.0.0/24,172.18.0.0/16
                 esp_proposals = aes256gcm16-ke1_mlkem768
                 mode = tunnel
-                start_action = start
+                start_action = __START_ACTION__
             }}
         }}
         version = 2
@@ -96,7 +96,27 @@ _CU_SECRETS_CONF = f"""secrets {{
 
 
 def _mirror(conf: str) -> str:
-    return conf.replace("10.97.0.41", "__TMP__").replace("10.97.0.42", "10.97.0.41").replace("__TMP__", "10.97.0.42")
+    """Troca não só os endereços IKE (10.97.0.41/.42) como também
+    `local_ts`/`remote_ts` entre os dois lados — **achado real rodando a
+    campanha de 30 iterações**: a versão anterior só trocava os
+    endereços, deixando o lado da borda com os MESMOS `local_ts`
+    (10.98.0.98/32,172.18.0.99/32) que o CU também anuncia. O narrowing
+    do strongSwan então negocia a intersecção entre o `remote_ts` do CU
+    (10.98.0.0/24,172.18.0.0/16) e o `local_ts` da borda — que, por não
+    ter sido espelhado, também era 10.98.0.98/32,172.18.0.99/32 — e
+    instala uma política cobrindo só esses dois hosts exatos, não a
+    sub-rede real. Resultado: SA sobe "ESTABLISHED" normalmente, mas o
+    tráfego GTP real (que não tem esses IPs exatos como destino) nunca
+    bate na política — `0 bytes, 0 packets` do início ao fim,
+    confirmado em `swanctl --list-sas` e nos 30/30 `xfrm_snapshot` da
+    campanha. Corrigido trocando também os pares de traffic selector."""
+    out = conf.replace("10.97.0.41", "__TMP_ADDR__").replace("10.97.0.42", "10.97.0.41").replace("__TMP_ADDR__", "10.97.0.42")
+    out = out.replace(
+        "10.98.0.98/32,172.18.0.99/32", "__TMP_TS__"
+    ).replace(
+        "10.98.0.0/24,172.18.0.0/16", "10.98.0.98/32,172.18.0.99/32"
+    ).replace("__TMP_TS__", "10.98.0.0/24,172.18.0.0/16")
+    return out
 
 
 _rekey_thread_stop = threading.Event()
@@ -173,9 +193,21 @@ def setup() -> None:
     _backup["edge_conn"] = edge_conn.read_text()
     _backup["edge_secrets"] = edge_secrets.read_text()
 
-    cu_conn.write_text(_CU_CONNECTIONS_CONF)
+    # **Hipótese investigada rodando a campanha de 10 iterações**: com
+    # `start_action = start` nos DOIS lados, CU e borda tentam iniciar a
+    # IKE_SA simultaneamente a cada setup() — uma corrida de iniciação
+    # que o strongSwan tolera na maior parte das vezes, mas que pode
+    # explicar a degradação progressiva observada (iterações 1-5 limpas,
+    # 6 degradando, 7-10 mortas desde o início: `fixed_interval_rekey`
+    # ficou visivelmente mais rápido, ~0.025s vs ~0.046-0.049s, bem no
+    # instante em que o tráfego parou — sugerindo que o `swanctl --rekey`
+    # passou a falhar rápido, não ter sucesso). Não validado ao vivo
+    # ainda (não dava pra reproduzir sem colidir com a campanha em
+    # andamento nos mesmos netns) — só CU inicia agora, borda só
+    # responde, prática padrão do strongSwan pra evitar essa corrida.
+    cu_conn.write_text(_CU_CONNECTIONS_CONF.replace("__START_ACTION__", "start"))
     cu_secrets.write_text(_CU_SECRETS_CONF.replace("{SECRET}", psk))
-    edge_conn.write_text(_mirror(_CU_CONNECTIONS_CONF))
+    edge_conn.write_text(_mirror(_CU_CONNECTIONS_CONF).replace("__START_ACTION__", "none"))
     edge_secrets.write_text(_mirror(_CU_SECRETS_CONF).replace("{SECRET}", psk))
 
     cu_pid = lab_control.start_ipsec_instance("cu-ns")

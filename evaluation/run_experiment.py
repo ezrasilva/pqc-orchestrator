@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import random
 import re
 import subprocess
 import sys
@@ -64,7 +65,16 @@ def _resolve_bind_ip(iface: str, netns: str, retries: int = 5, retry_delay_secon
     transitória (nunca persiste — a mesma interface sempre resolve
     normalmente segundos depois), a correção correta é absorver a
     transitoriedade com retry, não impedir a perda de dado tratando o
-    sintoma no coletor."""
+    sintoma no coletor.
+
+    **Segunda rodada de investigação (sugestões externas)**: o
+    `capture_output=True` anterior descartava o `stderr` real do `ip`
+    no momento da falha — a mensagem textual real nunca foi vista, só
+    o exit code. Agora loga via `emit()` pra próxima falha real deixar
+    rastro (`stderr` pode ser "Cannot allocate memory"/EAGAIN no
+    socket Netlink sob CPU estrangulado, não necessariamente "device
+    not found" — ainda não confirmado, é só o que o exit code 1 permite
+    descartar/confirmar da próxima vez)."""
     last_error: Exception | None = None
     for attempt in range(retries):
         try:
@@ -78,6 +88,10 @@ def _resolve_bind_ip(iface: str, netns: str, retries: int = 5, retry_delay_secon
             return match.group(1)
         except subprocess.CalledProcessError as exc:
             last_error = exc
+            emit(
+                "resolve_bind_ip_retry", iface=iface, netns=netns, attempt=attempt,
+                returncode=exc.returncode, stderr=(exc.stderr or "").strip()[:500],
+            )
             if attempt < retries - 1:
                 time.sleep(retry_delay_seconds)
     raise RuntimeError(f"não resolvi IPv4 em {iface} dentro de {netns} após {retries} tentativas") from last_error
@@ -89,6 +103,14 @@ def _run_one_probe(probe: dict, duration_seconds: int) -> None:
     # seu próprio netns, com seu próprio gateway/subnet — ver
     # `lab_control._SLICE_NETNS_IFACE`/`_SLICE_DEST`.
     label, netns, iface, dest, profile = probe["label"], probe["netns"], probe["iface"], probe["dest"], probe["profile"]
+    # jitter antes de resolver o IP — as 3 threads (uma por fatia) chamam
+    # `_resolve_bind_ip` no mesmo instante exato (todas disparadas juntas
+    # em `_run_traffic_plan`); se a falha intermitente da eMBB (ver achado
+    # em `_resolve_bind_ip`) for uma colisão de timing com os pollers de
+    # kernel (XfrmStatePoller/ClassificationStatsPoller, tick de 0.5s) em
+    # vez de pura falta de recurso, espalhar esse instante deve bastar
+    # pra reduzir a taxa — ainda não confirmado, é um teste.
+    time.sleep(random.uniform(0.01, 0.05))
     bind_ip = _resolve_bind_ip(iface, netns)
     if profile == "latency":
         count = max(1, int(duration_seconds / 0.1))

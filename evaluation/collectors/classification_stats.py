@@ -62,17 +62,20 @@ class ClassificationStatsPoller:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
+    def _poll_once(self) -> None:
+        try:
+            for mc in read_classification_counters(self._netns):
+                emit(
+                    "classification_snapshot",
+                    mark=mc.mark, u32_expr=mc.u32_expr,
+                    packets=mc.packets, bytes=mc.bytes,
+                )
+        except subprocess.CalledProcessError:
+            pass
+
     def _loop(self) -> None:
         while not self._stop.is_set():
-            try:
-                for mc in read_classification_counters(self._netns):
-                    emit(
-                        "classification_snapshot",
-                        mark=mc.mark, u32_expr=mc.u32_expr,
-                        packets=mc.packets, bytes=mc.bytes,
-                    )
-            except subprocess.CalledProcessError:
-                pass
+            self._poll_once()
             self._stop.wait(self._interval)
 
     def start(self) -> None:
@@ -81,6 +84,12 @@ class ClassificationStatsPoller:
         self._thread.start()
 
     def stop(self) -> None:
+        """Ver docstring de `XfrmStatePoller.stop()` — mesmo achado:
+        força uma leitura final síncrona em vez de confiar na última
+        amostra do timer periódico, que podia ficar desalinhada em até
+        ~1s da última amostra do `XfrmStatePoller` (achado analisando
+        falhas na métrica de isolamento B.3 sob throughput alto)."""
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=self._interval * 2)
+        self._poll_once()

@@ -75,17 +75,20 @@ class XfrmStatePoller:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
+    def _poll_once(self) -> None:
+        try:
+            for sa in read_xfrm_state(self._netns):
+                emit(
+                    "xfrm_snapshot",
+                    src=sa.src, dst=sa.dst, spi=sa.spi, mode=sa.mode,
+                    mark=sa.mark, bytes=sa.bytes, packets=sa.packets,
+                )
+        except subprocess.CalledProcessError:
+            pass  # netns pode não existir ainda/mais — ignora essa amostra
+
     def _loop(self) -> None:
         while not self._stop.is_set():
-            try:
-                for sa in read_xfrm_state(self._netns):
-                    emit(
-                        "xfrm_snapshot",
-                        src=sa.src, dst=sa.dst, spi=sa.spi, mode=sa.mode,
-                        mark=sa.mark, bytes=sa.bytes, packets=sa.packets,
-                    )
-            except subprocess.CalledProcessError:
-                pass  # netns pode não existir ainda/mais — ignora essa amostra
+            self._poll_once()
             self._stop.wait(self._interval)
 
     def start(self) -> None:
@@ -94,6 +97,22 @@ class XfrmStatePoller:
         self._thread.start()
 
     def stop(self) -> None:
+        """**Achado real analisando o isolamento (B.3) numa campanha
+        real**: parar só sinalizava o `Event` — a última amostra de
+        cada poller ficava em qualquer ponto do ciclo de 0.5s em que
+        estava, sem relação com a amostra final do OUTRO poller (que
+        tem seu próprio timer, sem clock compartilhado). Sob throughput
+        alto (eMBB), esse desalinhamento de até ~1s entre as duas
+        "últimas amostras" é o suficiente pra algumas centenas de
+        pacotes passarem só nesse intervalo — estourando a tolerância
+        de 3% da métrica de isolamento sem que haja fuga real entre
+        fatias, só um artefato de amostragem. Corrigido: força uma
+        leitura final síncrona aqui, no instante exato do `stop()`
+        (chamado de volta a volta com o `stop()` do
+        `ClassificationStatsPoller` em `run_experiment.py`), em vez de
+        confiar em quando o timer periódico de cada um por acaso
+        calhou de disparar por último."""
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=self._interval * 2)
+        self._poll_once()

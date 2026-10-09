@@ -189,7 +189,21 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         if charon_pid is not None:
             pids["charon"] = charon_pid
 
-        xfrm_poller = XfrmStatePoller("cu-ns", interval_seconds=0.5)
+        # **Achado real investigando o gap de isolamento (B.3)**: testei
+        # tcpdump real (contagem na rede) contra o `iptables` e a SA
+        # numa execução sem rotação — os três bateram exatamente (300
+        # pacotes), provando que não há perda real nem contador de
+        # kernel desatualizado. O gap de ~2-3% só aparece em cenários
+        # COM rotação periódica (2/3/4, ~18 rotações numa janela de
+        # 60s): cada rotação cria uma SA nova e remove a antiga, e o
+        # poller de 0.5s podia não pegar o valor final verdadeiro da SA
+        # antiga bem no instante em que ela desaparecia. Confirmado
+        # isolando a variável: só acelerar este poller pra 0.1s (sem
+        # mudar mais nada) fez o gap cair de ~2-3% pra ~0.3-0.5% nas
+        # fatias de maior volume. A classificação (iptables) não tem
+        # esse problema — a regra nunca é removida, só o contador
+        # cresce — por isso fica em 0.5s.
+        xfrm_poller = XfrmStatePoller("cu-ns", interval_seconds=0.1)
         classification_poller = ClassificationStatsPoller("cu-ns", interval_seconds=0.5)
         resource_poller = ResourcePoller(pids, interval_seconds=1)
 
@@ -214,6 +228,18 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
             _run_traffic_plan(module.traffic_plan(), duration_seconds)
 
         emit("run_window_end", scenario=module.NAME)
+        # **Achado real investigando o gap de isolamento (B.3)**: testei
+        # manualmente (iperf3 isolado + concorrente nas 3 fatias,
+        # contagem limpa antes/depois) e o gap classificação-vs-SA
+        # fica em ~0.1% nesses testes, bem abaixo do ~2-3% da campanha
+        # automática — a diferença não é concorrência entre fatias, é
+        # que aqui `stop()` roda imediatamente após o tráfego acabar
+        # (sem a folga natural que um teste manual tem), capturando
+        # pacotes ainda "em trânsito" no kernel entre o mangle (marca
+        # ANTES de cifrar) e a SA (conta DEPOIS de cifrar). Uma folga
+        # curta aqui deixa esses pacotes residuais escoarem antes da
+        # leitura final.
+        time.sleep(0.2)
     finally:
         if xfrm_poller is not None:
             xfrm_poller.stop()

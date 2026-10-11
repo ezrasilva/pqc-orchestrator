@@ -42,6 +42,7 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
+import uuid
 
 from evaluation import lab_control
 from evaluation.collectors.resource import find_charon_pid
@@ -50,7 +51,20 @@ from evaluation.instrumentation import emit
 NAME = "cenario1_pqc_estatico"
 
 FIXED_REKEY_INTERVAL_SECONDS = 30  # ver CENARIOS-TESTE-AVALIACAO.md seção 1
-CONN_NAME = "n2n3-static-pqc-cu-edge"
+# **Investigando a degradação permanente a partir da 3ª-4ª iteração numa
+# campanha longa (30 iterações)**: descartei esgotamento de recurso,
+# ARP obsoleto, política XFRM divergente e infraestrutura IPsec/kernel
+# quebrada (um pacote manual com a mesma origem saiu cifrado
+# perfeitamente durante a falha) — tudo testado e refutado ao vivo.
+# Hipótese remanescente: todas as 30 iterações reusam o MESMO nome de
+# conexão (`n2n3-static-pqc-cu-edge`), logo o mesmo `reqid` no kernel,
+# destruído e recriado do zero dezenas de vezes em sequência rápida —
+# diferente dos outros cenários, que fazem rekey sem destruir a
+# estrutura inteira. Teste: nome de conexão único por iteração (sufixo
+# aleatório), forçando o kernel a alocar uma estrutura nova em vez de
+# reciclar a mesma repetidamente.
+_CONN_NAME_PREFIX = "n2n3-static-pqc-cu-edge"
+_current_conn_name: str | None = None
 
 # Versão do ipsec.conf clássico SEM n2-cu-edge — pra não competir com a
 # conexão estática pelo mesmo tráfego de controle (ver achado
@@ -64,34 +78,34 @@ _EDGE_CLASSIC_WITHOUT_N2 = """config setup
     charondebug="ike 1, knl 1, cfg 1"
 """
 
-_CU_CONNECTIONS_CONF = f"""connections {{
-    {CONN_NAME} {{
+_CU_CONNECTIONS_CONF = """connections {
+    __CONN_NAME__ {
         local_addrs = 10.97.0.41
         remote_addrs = 10.97.0.42
         proposals = aes256gcm16-prfsha256-modp2048-ke1_mlkem768
-        local {{ auth = psk }}
-        remote {{ auth = psk }}
-        children {{
-            {CONN_NAME} {{
+        local { auth = psk }
+        remote { auth = psk }
+        children {
+            __CONN_NAME__ {
                 local_ts = 10.98.0.98/32,172.18.0.99/32
                 remote_ts = 10.98.0.0/24,172.18.0.0/16
                 esp_proposals = aes256gcm16-ke1_mlkem768
                 mode = tunnel
                 start_action = __START_ACTION__
-            }}
-        }}
+            }
+        }
         version = 2
-    }}
-}}
+    }
+}
 """
 
-_CU_SECRETS_CONF = f"""secrets {{
-    ike-{CONN_NAME} {{
+_CU_SECRETS_CONF = """secrets {
+    ike-__CONN_NAME__ {
         id-1 = 10.97.0.41
         id-2 = 10.97.0.42
-        secret = "{{SECRET}}"
-    }}
-}}
+        secret = "{SECRET}"
+    }
+}
 """
 
 
@@ -123,15 +137,15 @@ _rekey_thread_stop = threading.Event()
 _rekey_thread: "threading.Thread | None" = None
 
 
-def _rekey_loop(charon_pid: int) -> None:
+def _rekey_loop(charon_pid: int, conn_name: str) -> None:
     while not _rekey_thread_stop.wait(FIXED_REKEY_INTERVAL_SECONDS):
         start = time.monotonic()
         subprocess.run(
             ["nsenter", f"--mount=/proc/{charon_pid}/ns/mnt", f"--net=/proc/{charon_pid}/ns/net",
-             "swanctl", "--rekey", "--ike", CONN_NAME],
+             "swanctl", "--rekey", "--ike", conn_name],
             capture_output=True,
         )
-        emit("fixed_interval_rekey", connection=CONN_NAME, duration_seconds=time.monotonic() - start)
+        emit("fixed_interval_rekey", connection=conn_name, duration_seconds=time.monotonic() - start)
 
 
 _backup: dict[str, str] = {}
@@ -151,6 +165,10 @@ def setup() -> None:
     Corrigido: sobrescreve `connections.conf`/`secrets.conf` (que JÁ têm
     bind mount) diretamente, com backup pro `teardown()` restaurar."""
     import secrets
+
+    global _current_conn_name
+    conn_name = f"{_CONN_NAME_PREFIX}-{uuid.uuid4().hex[:8]}"
+    _current_conn_name = conn_name
 
     psk = __import__("base64").b64encode(secrets.token_bytes(32)).decode()
 
@@ -205,10 +223,10 @@ def setup() -> None:
     # ainda (não dava pra reproduzir sem colidir com a campanha em
     # andamento nos mesmos netns) — só CU inicia agora, borda só
     # responde, prática padrão do strongSwan pra evitar essa corrida.
-    cu_conn.write_text(_CU_CONNECTIONS_CONF.replace("__START_ACTION__", "start"))
-    cu_secrets.write_text(_CU_SECRETS_CONF.replace("{SECRET}", psk))
-    edge_conn.write_text(_mirror(_CU_CONNECTIONS_CONF).replace("__START_ACTION__", "none"))
-    edge_secrets.write_text(_mirror(_CU_SECRETS_CONF).replace("{SECRET}", psk))
+    cu_conn.write_text(_CU_CONNECTIONS_CONF.replace("__START_ACTION__", "start").replace("__CONN_NAME__", conn_name))
+    cu_secrets.write_text(_CU_SECRETS_CONF.replace("{SECRET}", psk).replace("__CONN_NAME__", conn_name))
+    edge_conn.write_text(_mirror(_CU_CONNECTIONS_CONF).replace("__START_ACTION__", "none").replace("__CONN_NAME__", conn_name))
+    edge_secrets.write_text(_mirror(_CU_SECRETS_CONF).replace("{SECRET}", psk).replace("__CONN_NAME__", conn_name))
 
     cu_pid = lab_control.start_ipsec_instance("cu-ns")
     edge_pid = lab_control.start_ipsec_instance("5gc-edge-ns")
@@ -218,11 +236,11 @@ def setup() -> None:
             capture_output=True,
         )
 
-    if not lab_control.wait_for_sa_established("cu-ns", CONN_NAME):
-        raise RuntimeError(f"{CONN_NAME} não estabeleceu — ver logs do charon em cu-ns")
+    if not lab_control.wait_for_sa_established("cu-ns", conn_name):
+        raise RuntimeError(f"{conn_name} não estabeleceu — ver logs do charon em cu-ns")
 
     # Mesmo raciocínio do cenário 0 (ver scenario0_baseline_native.py):
-    # a única SA aqui (CONN_NAME) não tem mark_in/mark_out nem
+    # a única SA aqui (conn_name) não tem mark_in/mark_out nem
     # diferenciação por fatia — B.3 já retorna N/A pra este cenário de
     # qualquer forma. Só limpa a tabela mangle, sem a captura de TEID
     # frágil que não contribui pra nenhuma métrica real aqui.
@@ -230,7 +248,7 @@ def setup() -> None:
 
     global _rekey_thread
     _rekey_thread_stop.clear()
-    _rekey_thread = threading.Thread(target=_rekey_loop, args=(cu_pid,), daemon=True)
+    _rekey_thread = threading.Thread(target=_rekey_loop, args=(cu_pid, conn_name), daemon=True)
     _rekey_thread.start()
 
 

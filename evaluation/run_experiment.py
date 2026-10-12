@@ -290,11 +290,19 @@ def main() -> int:
         for key in scenario_keys:
             if key not in SCENARIOS:
                 parser.error(f"cenário desconhecido: {key!r} (válidos: {', '.join(SCENARIOS)}, ou 'all')")
+    # garante espaço livre em /tmp (tmpfs) ANTES de qualquer cenário —
+    # ver docstring de ensure_disk_headroom. Uma campanha longa (horas)
+    # acumula log de gNB/UE o bastante pra encher os 12GB sozinha.
+    lab_control.ensure_disk_headroom()
+
     log_paths = []
     failures = []
     for key in scenario_keys:
         for i in range(1, args.iterations + 1):
             print(f"=== cenário {key}, iteração {i}/{args.iterations} ===")
+            # checagem barata entre execuções — numa campanha de horas,
+            # o /tmp pode passar do limite no meio, não só no começo.
+            lab_control.ensure_disk_headroom()
             try:
                 log_paths.append(run_once(key, i, args.duration, args.warmup))
             except Exception as exc:

@@ -296,6 +296,60 @@ def assert_no_stray_processes() -> None:
 
 
 GNB_COMBINED_LOG = Path("/tmp/gnb_combined.log")
+_UE_LOGS = (Path("/tmp/ue_urllc.log"), Path("/tmp/ue_embb.log"), Path("/tmp/ue_miot.log"))
+_GROWING_LOGS = (GNB_COMBINED_LOG,) + _UE_LOGS
+
+
+def ensure_disk_headroom(threshold_percent: float = 60.0) -> None:
+    """**Achado real investigando a degradação permanente/inexplicável do
+    cenário 1 numa campanha longa**: `/tmp` nesta VM é `tmpfs` (12GB, em
+    RAM) — os logs do gNB (`gnb_combined.log`) e das 3 UEs (`ue_*.log`)
+    crescem sem limite (sem rotação real configurada) durante uma
+    sessão de dias, e em algum momento ENCHEM o `/tmp` por completo.
+    Confirmado ao vivo: somados, os 4 arquivos bateram exatamente nos
+    12GB do tmpfs. Depois disso, qualquer escrita em `/tmp` (do próprio
+    gNB, do charon, de qualquer coisa) pode falhar silenciosamente — e
+    como reiniciar processos não libera espaço em disco, o problema
+    NUNCA se resolvia sozinho, só piorava (explicando por que o ponto
+    exato de quebra variava entre campanhas: dependia de quanto log já
+    tinha acumulado de sessões anteriores, não de contagem de
+    iteração). Hipóteses de causa testadas antes desta (esgotamento de
+    fd/conntrack, ARP obsoleto, reqid de conexão reusado) foram só
+    sintomas corrigidos no caminho, não a causa raiz real.
+
+    **Por que precisa reiniciar a RAN, não só truncar os arquivos**: os
+    processos gNB/UE mantêm o descritor aberto com a posição de escrita
+    onde estava — truncar o arquivo por fora enquanto o processo ainda
+    escreve não libera espaço de verdade, ele continua escrevendo a
+    partir do offset antigo (vira um arquivo esparso, o problema volta
+    na prática imediatamente). Só funciona truncar DEPOIS de reiniciar
+    os processos (novo file descriptor, offset zero).
+
+    Chamada no início de `main()` e entre cenários — barata quando não
+    precisa agir (só um `shutil.disk_usage`), e o restart via
+    `watchdog_start.sh` já é o mesmo procedimento usado manualmente
+    (RUNBOOK-OAI.md) pra um RAN saudável do zero."""
+    import shutil
+
+    usage = shutil.disk_usage("/tmp")
+    percent_used = 100.0 * usage.used / usage.total
+    if percent_used < threshold_percent:
+        return
+
+    print(
+        f"[ensure_disk_headroom] /tmp em {percent_used:.0f}% "
+        f"(limite {threshold_percent:.0f}%) — reiniciando RAN e truncando logs antes de continuar"
+    )
+    watchdog = _real_home() / "ocudu-lab" / "watchdog_start.sh"
+    result = subprocess.run(["sudo", "bash", str(watchdog)], capture_output=True, text=True, timeout=300)
+    if "SUCESSO" not in result.stdout:
+        raise RuntimeError(
+            f"ensure_disk_headroom: watchdog_start.sh não confirmou sucesso — "
+            f"saída:\n{result.stdout[-2000:]}\n{result.stderr[-1000:]}"
+        )
+    for log_path in _GROWING_LOGS:
+        subprocess.run(["sudo", "truncate", "-s", "0", str(log_path)], capture_output=True)
+    print("[ensure_disk_headroom] RAN reiniciada e logs truncados, espaço liberado.")
 
 # IMSI (fixo em cada ue_<fatia>.conf) -> fatia, pelo prefixo -011/-012/-013
 # (ver ~/ocudu-lab/ue_*.conf). Único jeito confiável de identificar a

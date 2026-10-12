@@ -322,8 +322,21 @@ def ensure_disk_headroom(threshold_percent: float = 60.0) -> None:
     onde estava — truncar o arquivo por fora enquanto o processo ainda
     escreve não libera espaço de verdade, ele continua escrevendo a
     partir do offset antigo (vira um arquivo esparso, o problema volta
-    na prática imediatamente). Só funciona truncar DEPOIS de reiniciar
-    os processos (novo file descriptor, offset zero).
+    na prática imediatamente). Só funciona truncar ANTES de reiniciar
+    os processos (quem nasce depois já abre no offset zero).
+
+    **Achado real rodando a campanha de validação deste fix**: a
+    primeira versão truncava DEPOIS do `watchdog_start.sh` (raciocínio
+    "só libera espaço de verdade com processo novo" — verdade, mas na
+    ordem errada). Isso apagava, junto com o lixo acumulado, as linhas
+    de TEID que o PRÓPRIO restart tinha acabado de escrever durante o
+    attach das 3 UEs (`gnb_combined.log`) — exatamente o que
+    `capture_and_apply_slice_marks()` (cenários 2/3/4) precisa ler
+    depois pra achar o TEID de cada fatia. Resultado: 90/90 execuções
+    desses três cenários falharam com "nenhum TEID encontrado", 100%
+    reprodutível, numa campanha inteira. Corrigido invertendo a ordem:
+    trunca ANTES de reiniciar — o attach da próxima inicialização
+    escreve as linhas de TEID num arquivo que ninguém mais apaga depois.
 
     Chamada no início de `main()` e entre cenários — barata quando não
     precisa agir (só um `shutil.disk_usage`), e o restart via
@@ -338,8 +351,10 @@ def ensure_disk_headroom(threshold_percent: float = 60.0) -> None:
 
     print(
         f"[ensure_disk_headroom] /tmp em {percent_used:.0f}% "
-        f"(limite {threshold_percent:.0f}%) — reiniciando RAN e truncando logs antes de continuar"
+        f"(limite {threshold_percent:.0f}%) — truncando logs e reiniciando RAN antes de continuar"
     )
+    for log_path in _GROWING_LOGS:
+        subprocess.run(["sudo", "truncate", "-s", "0", str(log_path)], capture_output=True)
     watchdog = _real_home() / "ocudu-lab" / "watchdog_start.sh"
     result = subprocess.run(["sudo", "bash", str(watchdog)], capture_output=True, text=True, timeout=300)
     if "SUCESSO" not in result.stdout:
@@ -347,9 +362,7 @@ def ensure_disk_headroom(threshold_percent: float = 60.0) -> None:
             f"ensure_disk_headroom: watchdog_start.sh não confirmou sucesso — "
             f"saída:\n{result.stdout[-2000:]}\n{result.stderr[-1000:]}"
         )
-    for log_path in _GROWING_LOGS:
-        subprocess.run(["sudo", "truncate", "-s", "0", str(log_path)], capture_output=True)
-    print("[ensure_disk_headroom] RAN reiniciada e logs truncados, espaço liberado.")
+    print("[ensure_disk_headroom] RAN reiniciada com logs truncados, espaço liberado.")
 
 # IMSI (fixo em cada ue_<fatia>.conf) -> fatia, pelo prefixo -011/-012/-013
 # (ver ~/ocudu-lab/ue_*.conf). Único jeito confiável de identificar a

@@ -98,7 +98,7 @@ def run_throughput_probe(
     duration_seconds: int = 10, udp: bool = False, bitrate: str = "", label: str = "throughput",
 ) -> dict:
     """`iperf3 -J` contra o servidor real na UPF — precisa de
-    `iperf3 -s` já rodando lá (ver RUNBOOK-OAI.md/Fase 1). `--bind`
+    `iperf3 -s` já rodando lá (ver RUNBOOK-OCUDU.md/Fase 1). `--bind`
     garante que o tráfego sai pela sessão PDU certa (uma interface por
     fatia), não pela rota default."""
     cmd = [

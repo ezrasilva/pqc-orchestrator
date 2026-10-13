@@ -1,5 +1,10 @@
 # Roteiro de implementação — Módulo 2 (Sniffer PFCP) e integração com Módulos 3/4
 
+> **Nota (pipeline de avaliação)**: este módulo foi implementado e
+> validado contra o protótipo em OAI (ver `ARQUITETURA-PROTOTIPO-COMPLETA.md`).
+> O pipeline de avaliação experimental (`evaluation/`) roda em OCUDU +
+> srsRAN_4G hoje — ver `RUNBOOK-OCUDU.md`.
+
 Opção escolhida: sniffer passivo de PFCP (não mexe na Open5GS), confirmado
 viável via leitura direta do código-fonte da Open5GS — o S-NSSAI é o IE 257
 do PFCP (`OGS_PFCP_S_NSSAI_TYPE`, `lib/pfcp/message.h`) e a SMF o envia na

@@ -22,7 +22,7 @@ alegue que o baseline só "rotacionou mais vezes" por construção.
 ## 1. Cenários
 
 ### Cenário 0 — Baseline Nativo (sem IPsec / sem PQC)
-Tráfego Open5GS + OAI fluindo direto por N3/F1-U, sem cifragem nenhuma.
+Tráfego Open5GS + OCUDU fluindo direto por N3, sem cifragem nenhuma.
 Objetivo: estabelecer o piso de latência e o teto de vazão do hardware/VM,
 sem overhead de segurança. Serve de referência para "custo total da segurança"
 nos demais cenários.

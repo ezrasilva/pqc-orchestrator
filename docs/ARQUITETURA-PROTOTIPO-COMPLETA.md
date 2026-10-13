@@ -1,5 +1,12 @@
 # Roteiro de arquitetura — Protótipo de diferenciação PQC+QKD por fatia sobre interfaces O-RAN/3GPP não modificadas
 
+> **Nota (pipeline de avaliação)**: este protótipo (Fases 1-5) rodou em
+> OAI de verdade, validado ao vivo — descrição histórica precisa, não
+> alterada. O **pipeline de avaliação experimental** (`evaluation/`,
+> cenários 0-4) foi portado pra **OCUDU + srsRAN_4G** depois (ver
+> `RUNBOOK-OCUDU.md`) — se você está rodando campanhas de avaliação hoje,
+> o RAN real é OCUDU, não o OAI descrito abaixo.
+
 Alvo: SBRC 2027. Base: Open5GS + OAI já configurados na sua VM.
 
 ## 0. Ideia central (uma frase)
@@ -46,13 +53,15 @@ dentro do nó de segurança, via classificação de pacote no kernel
 +---------------------------------------------------------------------------------+
 ```
 
-**Nota sobre o diagrama vs. o laboratório real**: o desenho mostra CU-CP e
-CU-UP como caixas separadas, ligadas por E1 — isso é a arquitetura
-3GPP/O-RAN de referência, mas **não é como a VM está rodando hoje**. No
-laboratório atual (ver `RUNBOOK-OAI.md`), a CU roda como **um processo
-único** (`nr-softmodem -O cu.conf`) que concentra CU-CP e CU-UP — o E1AP
-que aparece nos logs é tráfego interno ao processo, não um enlace de rede
-real entre dois binários. Isso não invalida o protótipo (o Módulo 4 só
+**Nota sobre o diagrama vs. o laboratório do protótipo (OAI)**: o desenho
+mostra CU-CP e CU-UP como caixas separadas, ligadas por E1 — isso é a
+arquitetura 3GPP/O-RAN de referência, mas **não é como a VM rodava no
+protótipo em OAI**. Na época, a CU rodava como **um processo único**
+(`nr-softmodem -O cu.conf`) que concentra CU-CP e CU-UP — o E1AP que
+aparece nos logs era tráfego interno ao processo, não um enlace de rede
+real entre dois binários. (No pipeline de avaliação atual em OCUDU, ver
+`RUNBOOK-OCUDU.md`, a situação é parecida por outro motivo: o gNB
+combina CU **e DU** num processo só.) Isso não invalida o protótipo (o Módulo 4 só
 precisa proteger N3, e N3 já é um enlace de rede de verdade nessa
 topologia, CU↔UPF), mas quer dizer que **não existe hoje um enlace E1
 físico pra proteger** — se o protótipo algum dia quiser demonstrar
@@ -228,7 +237,7 @@ criptográfico certo, com base na marca que o Módulo 3 deixou no pacote.
 ### 5.0 Decisão de topologia (resolvida — reaproveita o `5gc-edge-ns`)
 
 O enlace N3 desta VM **não é** uma ligação direta CU↔UPF. Ele passa pelo
-`5gc-edge-ns` (ver `RUNBOOK-OAI.md`) — um netns de borda criado porque:
+`5gc-edge-ns` (ver `RUNBOOK-OCUDU.md`) — um netns de borda criado porque:
 (a) o Docker bloqueia por padrão tráfego roteado-de-fora pra IPs de
 container (proteção anti-spoofing), e (b) NAT nesse caminho corrompia o
 checksum do SCTP do N2 — então o `5gc-edge-ns` entra como membro real das
@@ -508,7 +517,7 @@ projeto.
   - A UE do OAI **não envia `Requested NSSAI`** no Registration Request —
     o AMF só libera (`Allowed NSSAI`) as fatias com `default_indicator:
     true` na assinatura. Corrigido marcando as três fatias do assinante de
-    teste (`001010000000004`) como default — ver `RUNBOOK-OAI.md`.
+    teste (`001010000000004`) como default — ver `RUNBOOK-OCUDU.md`.
   - A UPF usa **uma única interface** `ogstun` (`10.45.0.1/16`) pras três
     sub-redes, não uma por fatia — os "gateways" por DNN no `smf.yaml`
     (`10.45.1.1`, `10.45.2.1`) são só contabilidade da SMF pra alocação de

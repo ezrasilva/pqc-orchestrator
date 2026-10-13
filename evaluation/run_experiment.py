@@ -11,7 +11,7 @@ Uso:
     sudo .venv/bin/python3 run_experiment.py --scenario all --iterations 3 --duration 30  # smoke test
 
 Precisa de root (fala com os netns do laboratório) e do laboratório já
-montado (ver docs/RUNBOOK-OAI.md passos 0-3 — RAN/5GC/rede de pé; este
+montado (ver docs/RUNBOOK-OCUDU.md passos 0-3 — RAN/5GC/rede de pé; este
 script cuida só da camada IPsec de cada cenário)."""
 
 from __future__ import annotations

@@ -1,16 +1,23 @@
 # pqc-orchestrator
 
 Orquestrador de rotação/revogação de chaves híbridas PQC(+QKD simulado)
-protegendo IPsec num laboratório O-RAN (OpenAirInterface + Open5GS), e o
-laboratório em si.
+protegendo IPsec num laboratório O-RAN + Open5GS, e o laboratório em si.
+
+> **Nota sobre o RAN usado**: o protótipo original (Fases 1-5, SBRC) rodou
+> em **OAI** (`nr-softmodem`/`nr-uesoftmodem`). O **pipeline de avaliação
+> experimental** (`evaluation/`, cenários 0-4 — o trabalho ativo hoje) foi
+> portado de OAI pra **OCUDU + srsRAN_4G** depois (commit `4ed5048`) — um
+> testbed com 3 processos `srsue` reais (um por fatia) em vez de uma UE
+> OAI só multiplexando 3 sessões PDU. Pra subir o laboratório **hoje**,
+> use `docs/RUNBOOK-OCUDU.md`; `docs/RUNBOOK-OAI.md` não existe mais.
 
 Leia nessa ordem:
-1. [`docs/PLANO-IMPLEMENTACAO-OAI.md`](docs/PLANO-IMPLEMENTACAO-OAI.md) — como o laboratório RAN+5GC foi montado (OAI no lugar do srsRAN/OCUDU original).
-2. [`docs/RUNBOOK-OAI.md`](docs/RUNBOOK-OAI.md) — como subir tudo de novo do zero (Open5GS, DU/CU/UE, os dois túneis IPsec), incluindo o troubleshooting dos bugs reais encontrados no caminho.
-3. [`docs/ARQUITETURA-ORQUESTRADOR.md`](docs/ARQUITETURA-ORQUESTRADOR.md) — a arquitetura do orquestrador em si (SMO, Scheduler, KMS, IPsec Agent, Admin API) e as decisões de design já fechadas.
-4. [`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](docs/ARQUITETURA-PROTOTIPO-COMPLETA.md) — protótipo de nó único (sniffer PFCP + eBPF + XFRM/strongSwan) visando SBRC 2027; concretiza, num escopo menor, as mesmas decisões do documento acima.
-5. [`docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md`](docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md) — detalhamento do sniffer PFCP do protótipo acima, com os achados de uma captura real já validada nesta VM.
-6. [`docs/CENARIOS-TESTE-AVALIACAO.md`](docs/CENARIOS-TESTE-AVALIACAO.md) — cenários e métricas da avaliação experimental (Risk-Aware Scheduler vs. baselines), implementados em `evaluation/`.
+1. [`docs/RUNBOOK-OCUDU.md`](docs/RUNBOOK-OCUDU.md) — como subir tudo de novo do zero (Open5GS, gNB OCUDU + 3 UEs srsRAN_4G, o túnel IPsec de N2/N3), incluindo o troubleshooting dos bugs reais encontrados no caminho.
+2. [`docs/ARQUITETURA-ORQUESTRADOR.md`](docs/ARQUITETURA-ORQUESTRADOR.md) — a arquitetura do orquestrador em si (SMO, Scheduler, KMS, IPsec Agent, Admin API) e as decisões de design já fechadas.
+3. [`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md`](docs/ARQUITETURA-PROTOTIPO-COMPLETA.md) — protótipo de nó único (sniffer PFCP + eBPF + XFRM/strongSwan) visando SBRC 2027, rodado em OAI; concretiza, num escopo menor, as mesmas decisões do documento acima.
+4. [`docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md`](docs/ROTEIRO-MODULO2-SNIFFER-PFCP.md) — detalhamento do sniffer PFCP do protótipo acima, com os achados de uma captura real já validada nesta VM.
+5. [`docs/CENARIOS-TESTE-AVALIACAO.md`](docs/CENARIOS-TESTE-AVALIACAO.md) — cenários e métricas da avaliação experimental (Risk-Aware Scheduler vs. baselines), implementados em `evaluation/` (OCUDU).
+6. [`docs/PLANO-IMPLEMENTACAO-OAI.md`](docs/PLANO-IMPLEMENTACAO-OAI.md) — como o RAN do protótipo (itens 3-4 acima) foi montado em OAI.
 
 ## Estrutura
 
@@ -27,11 +34,15 @@ prototype/        Código do protótipo de nó único pro SBRC 2027 — sniffer
 evaluation/       Pipeline de coleta experimental (cenários 0-4, métricas,
                    análise) pra avaliação do Risk-Aware Scheduler — ver
                    evaluation/README.md.
-lab/              Configs e scripts do laboratório OAI+Open5GS+IPsec que os
-                   docs acima descrevem — não é código do orquestrador, é a
+lab/              Configs e scripts do laboratório Open5GS+IPsec que os docs
+                   acima descrevem — não é código do orquestrador, é a
                    infraestrutura que ele vai gerenciar.
   5gc/            docker-compose + configs do núcleo Open5GS (3 fatias).
-  ran/            Configs do DU/CU (OAI) e template do UE simulado.
+  ran/            Vazio — tinha os configs de DU/CU/UE do protótipo em OAI
+                   (ver `PLANO-IMPLEMENTACAO-OAI.md`), removidos no port do
+                   pipeline de avaliação pra OCUDU (commit `4ed5048`); os
+                   configs reais de hoje vivem em `~/ocudu-lab/` na VM, fora
+                   deste repo (ver `RUNBOOK-OCUDU.md`).
   ipsec/          ipsec.conf por lado (cu/du/edge) + scripts de subida/parada.
   network/        Script que monta toda a rede virtual (netns/veth/proxy-ARP)
                    e a unit systemd que o roda no boot.
@@ -51,10 +62,11 @@ clonar este repo.
 
 ## Segredos
 
-Nenhum segredo real está neste repositório. `lab/ipsec/*/ipsec.secrets` e
-`lab/ran/ue.conf` (PSKs do IPsec e credenciais IMSI/key/opc da UE de teste)
-estão no `.gitignore` — os arquivos `.example` ao lado mostram o formato
-esperado. Gere valores novos localmente (`openssl rand -base64 32` pros
+Nenhum segredo real está neste repositório. `lab/ipsec/*/ipsec.secrets`
+(PSKs do IPsec) está no `.gitignore` — os arquivos `.example` ao lado
+mostram o formato esperado. Credenciais de UE/PSK do pipeline de
+avaliação atual (OCUDU) vivem em `~/ocudu-lab/` e `~/oai-lab-conf/`,
+fora deste repo. Gere valores novos localmente (`openssl rand -base64 32` pros
 PSKs) em vez de reaproveitar qualquer coisa que já tenha existido em outra
 cópia deste laboratório.
 

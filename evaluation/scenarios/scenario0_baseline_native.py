@@ -1,7 +1,7 @@
 """Cenário 0 — Baseline Nativo: sem IPsec, sem PQC. Estabelece o piso de
 latência/teto de vazão do hardware/VM (ver CENARIOS-TESTE-AVALIACAO.md
 seção 1). F1/N2/N3 continuam roteáveis normalmente — IPsec é uma camada
-OPCIONAL por cima da rede já montada (ver docs/RUNBOOK-OAI.md seção 4),
+OPCIONAL por cima da rede já montada (ver docs/RUNBOOK-OCUDU.md seção 4),
 então só precisamos derrubar o strongSwan, não desmontar netns/veth."""
 
 from __future__ import annotations

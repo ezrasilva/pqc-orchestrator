@@ -1,5 +1,14 @@
 # Arquitetura do orquestrador — gerenciamento de chaves PQC por fatia
 
+> **Nota (pipeline de avaliação)**: este documento descreve o ambiente do
+> protótipo em OAI, com CU/DU em netns separados ligados por F1 (ver
+> `ARQUITETURA-PROTOTIPO-COMPLETA.md`). O pipeline de avaliação
+> experimental (`evaluation/`) roda em OCUDU hoje — gNB combina CU+DU num
+> processo só dentro de `cu-ns`, sem F1 pra proteger (ver
+> `RUNBOOK-OCUDU.md`). As decisões de design do orquestrador em si (SMO,
+> Scheduler, KMS, IPsec Agent) não mudam; só a topologia RAN descrita
+> abaixo é histórica.
+
 Redesenho a partir das ideias já validadas no `slice-aware-hpq-kms` (fórmula de
 risco, ciclo de vida de chave, separação por fatia), mas repensado pra rodar
 no ambiente real que você acabou de montar (OAI + Open5GS + netns), e sem
@@ -174,7 +183,7 @@ seção descrevia só duas; ver correção abaixo):
 
 Todas terminam não na 5GC diretamente, mas num terceiro netns
 (`5gc-edge-ns`) que atua como membro real das redes Docker do Open5GS
-(sem NAT, via proxy-ARP pros aliases da CU) — ver `RUNBOOK-OAI.md` pro
+(sem NAT, via proxy-ARP pros aliases da CU) — ver `RUNBOOK-OCUDU.md` pro
 motivo (NAT quebrava o checksum SCTP do N2). O IPsec Agent não precisa
 saber desse detalhe de roteamento — só fala com o `charon` local.
 

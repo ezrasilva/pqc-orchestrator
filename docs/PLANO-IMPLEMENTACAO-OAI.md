@@ -1,3 +1,20 @@
+> **Nota (atualizada depois da migração pro OCUDU no pipeline de
+> avaliação)**: este plano foi **executado de verdade** — o protótipo
+> SBRC (Fases 1-5: sniffer PFCP, classificador eBPF, cifragem por fatia,
+> hibridização PQC+QKD, Scheduler com rotação dinâmica — ver
+> `ARQUITETURA-PROTOTIPO-COMPLETA.md` e `ROTEIRO-MODULO2-SNIFFER-PFCP.md`)
+> rodou em OAI (CU/DU/UE via `nr-softmodem`/`nr-uesoftmodem`), validado ao
+> vivo. **O pipeline de avaliação experimental** (`evaluation/`, cenários
+> 0-4) **foi portado de OAI pra OCUDU+srsRAN_4G depois** (commit `4ed5048`,
+> "port evaluation pipeline from OAI to OCUDU+srsUE testbed") — motivo:
+> OCUDU com 3 processos `srsue` reais (um por fatia, netns dedicado) deu
+> um testbed mais fiel pra medir isolamento por fatia do que o modelo de
+> "uma UE OAI multiplexando 3 sessões PDU" usado no protótipo. Pro
+> procedimento de subir o laboratório **hoje** (OCUDU), ver
+> `RUNBOOK-OCUDU.md` — este documento fica como registro de como o RAN
+> baseado em OAI foi montado, válido pro histórico do protótipo, não pro
+> pipeline de avaliação atual.
+
 # Plano de implementação — OAI na VM (substitui srsRAN/OCUDU)
 
 Ponto de partida: a mesma VM de antes (Ubuntu 26.04, 8 vCPU, ~23 GB RAM), com o

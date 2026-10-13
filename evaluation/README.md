@@ -32,7 +32,7 @@ sudo PYTHONPATH=.:../orchestrator:../prototype .venv/bin/python3 run_experiment.
 ```
 
 Precisa de root (fala com os netns do laboratório) e do laboratório já
-de pé (RAN/5GC/rede — ver `../docs/RUNBOOK-OAI.md` passos 0-3; este
+de pé (RAN/5GC/rede — ver `../docs/RUNBOOK-OCUDU.md` passos 0-3; este
 pipeline cuida só da camada IPsec de cada cenário).
 
 ## Estrutura

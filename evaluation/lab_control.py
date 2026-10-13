@@ -1,6 +1,6 @@
 """Operações de controle do laboratório reaproveitadas pelos cenários —
 fininas em cima dos scripts já existentes e validados em `lab/ipsec/`
-(Fases 3/4/5), não uma reimplementação. Ver `docs/RUNBOOK-OAI.md` seção
+(Fases 3/4/5), não uma reimplementação. Ver `docs/RUNBOOK-OCUDU.md` seção
 4 pro procedimento manual equivalente.
 """
 
@@ -31,7 +31,7 @@ def _real_home() -> Path:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LAB_IPSEC_DIR = REPO_ROOT / "lab" / "ipsec"
 # Script real de produção fica em ~/oai-lab-conf (gerado a partir do
-# template versionado) — ver docs/RUNBOOK-OAI.md. Os cenários operam
+# template versionado) — ver docs/RUNBOOK-OCUDU.md. Os cenários operam
 # contra ele, não contra o template do repositório.
 LIVE_LAB_IPSEC_DIR = _real_home() / "oai-lab-conf"
 
@@ -79,7 +79,7 @@ def _kill_and_verify(targets: list[str], label: str, timeout_seconds: float = 15
     raise RuntimeError(
         f"kill -9 não matou {label} (PIDs sobreviventes: {survivors}) depois de "
         f"{retries + 1} tentativas — não prossiga sem resolver isso manualmente "
-        "(ver docs/RUNBOOK-OAI.md)"
+        "(ver docs/RUNBOOK-OCUDU.md)"
     )
 
 
@@ -146,7 +146,7 @@ def restart_ipsec_lab(netnses: tuple[str, ...] = ("cu-ns", "5gc-edge-ns")) -> di
     """Reinício limpo (kill + flush + start) — necessário entre cenários
     que mudam a config IPsec, porque matar o charon não limpa o xfrm
     state/policy do kernel (achado da Fase 3, ver
-    docs/RUNBOOK-OAI.md troubleshooting)."""
+    docs/RUNBOOK-OCUDU.md troubleshooting)."""
     for ns in netnses:
         kill_ipsec_instance(ns)
     time.sleep(1)
@@ -290,7 +290,7 @@ def assert_no_stray_processes() -> None:
     if second_pass:
         raise RuntimeError(
             "processos suspeitos de zumbi detectados antes de começar a campanha, confirmados em "
-            "duas passadas com 5s de intervalo (ver docs/RUNBOOK-OAI.md e a seção 'pkill às vezes "
+            "duas passadas com 5s de intervalo (ver docs/RUNBOOK-OCUDU.md e a seção 'pkill às vezes "
             "não mata'):\n  " + "\n  ".join(second_pass)
         )
 
@@ -341,7 +341,7 @@ def ensure_disk_headroom(threshold_percent: float = 60.0) -> None:
     Chamada no início de `main()` e entre cenários — barata quando não
     precisa agir (só um `shutil.disk_usage`), e o restart via
     `watchdog_start.sh` já é o mesmo procedimento usado manualmente
-    (RUNBOOK-OAI.md) pra um RAN saudável do zero."""
+    (RUNBOOK-OCUDU.md) pra um RAN saudável do zero."""
     import shutil
 
     usage = shutil.disk_usage("/tmp")
@@ -509,7 +509,7 @@ def all_slices_data_plane_healthy() -> bool:
     srsUE) podem terminar de se reestabelecer em instantes diferentes
     depois de um restart — checar só uma fatia não garante que as outras
     duas já estejam prontas também (mesmo achado do lab antigo, ver
-    `docs/RUNBOOK-OAI.md` original; só muda o mecanismo por baixo)."""
+    `docs/RUNBOOK-OCUDU.md` original; só muda o mecanismo por baixo)."""
     return all(ue_data_plane_healthy(slice) for slice in _SLICE_NETNS_IFACE)
 
 

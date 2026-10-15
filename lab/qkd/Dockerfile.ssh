@@ -1,0 +1,54 @@
+
+FROM python:3.10-slim
+ENV DEBIAN_FRONTEND=noninteractive
+
+ARG PYTHON_PACKAGES
+# Pacotes instalados SEM resolver dependências. Existe por causa do
+# qd2_controller: ele declara `netsquid` como dependência obrigatória
+# (indisponível no PyPI público) e pina numpy==1.24.4/scipy==1.9.3, que
+# conflitam com o sequence. Como o backend de simulação aqui é o
+# SeQUeNCe, os caminhos de código que usam netsquid nunca são
+# executados — só o controller.py, que depende apenas de pika e yaml.
+ARG PYTHON_PACKAGES_NODEPS
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    sudo \
+    git \
+    openssh-client \
+    openssh-server \
+    sshpass \
+    rabbitmq-server\
+    procps && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# Usuário/senha usados só pelo Ansible do orchestrator para configurar
+# os nós, dentro da rede isolada `qkdn`. Parametrizados para não ficarem
+# fixos no arquivo versionado — o valor tem de bater com o inventory.yaml.
+ARG NODE_USER=qkdn
+ARG NODE_PASSWORD=change-me
+RUN useradd --create-home --shell /bin/bash "$NODE_USER" && \
+    echo "$NODE_USER:$NODE_PASSWORD" | chpasswd && \
+    adduser "$NODE_USER" sudo
+RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/UsePAM yes/UsePAM yes\nUseDNS no/' /etc/ssh/sshd_config && \
+    mkdir -p /var/run/sshd
+
+ENV VENV_PATH=/opt/venv
+RUN python3 -m venv $VENV_PATH
+ENV PATH="$VENV_PATH/bin:$PATH"
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    if [ -n "$PYTHON_PACKAGES" ]; then pip install --no-cache-dir $PYTHON_PACKAGES; fi && \
+    if [ -n "$PYTHON_PACKAGES_NODEPS" ]; then pip install --no-cache-dir --no-deps $PYTHON_PACKAGES_NODEPS; fi
+
+
+EXPOSE 22
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

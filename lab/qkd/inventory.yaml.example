@@ -1,0 +1,18 @@
+all:
+  hosts:
+    A:
+      ansible_host: 172.20.0.11
+      ansible_connection: ssh
+      ansible_user: qkdn
+      ansible_ssh_pass: TROQUE_ESTA_SENHA
+      py_env: /opt/venv/lib/python3.10
+
+    B:
+      ansible_host: 172.20.0.12
+      ansible_connection: ssh
+      ansible_user: qkdn
+      ansible_ssh_pass: TROQUE_ESTA_SENHA
+      py_env: /opt/venv/lib/python3.10
+
+# Template — copie para inventory.yaml (não versionado) e troque a senha.
+# O mesmo valor precisa bater com o usuário criado no Dockerfile.ssh.

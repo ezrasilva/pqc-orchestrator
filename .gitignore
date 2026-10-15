@@ -16,3 +16,5 @@ lab/ran/ue.conf
 # Logs de execução do laboratório
 *.log
 evaluation/results_phase_a/
+lab/qkd/inventory.yaml
+lab/qkd/.env

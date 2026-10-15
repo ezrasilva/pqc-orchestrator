@@ -1,0 +1,73 @@
+# Rede QKD (qkdn) para o SAPQ-IPsec — gêmeo digital QuDitto.
+#
+# Baseado em ezrasilva/Quditto_tutorial, com duas mudanças:
+#
+# 1. As credenciais do NetSquid saem de um arquivo .env local (NÃO
+#    versionado) em vez de ficarem embutidas aqui. As do repositório
+#    original estavam em texto claro num repositório PÚBLICO e hoje
+#    retornam HTTP 401 — provavelmente revogadas por isso mesmo.
+#    Registre-se em https://netsquid.org (gratuito para uso acadêmico)
+#    e preencha o .env a partir do .env.example.
+#
+# 2. A rede ganha nome fixo (`qkdn`) para o KMS do orquestrador
+#    encontrá-la de forma estável.
+#
+# Subnet 172.20.0.0/16 conferida como livre nesta VM: o 5GC usa
+# 172.18.0.0/16, a bridge padrão do Docker usa 172.17.0.0/16 e a
+# core-net usa 10.98.0.0/24.
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh
+      args:
+        PYTHON_PACKAGES: "qd2_orchestrator"
+    container_name: qkdn-orchestrator
+    hostname: orchestrator
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./inventory.yaml:/app/inventory.yaml
+    networks:
+      qkdn:
+        ipv4_address: 172.20.0.10
+
+  node1:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh
+      args:
+        # qd2_node e qd2_controller vêm do PyPI público (confirmado);
+        # só o netsquid exige o índice privado com conta.
+        PYTHON_PACKAGES: "qd2_node sequence pika pyyaml"
+        PYTHON_PACKAGES_NODEPS: "qd2_controller"
+    container_name: qkdn-node-a
+    hostname: node1
+    volumes:
+      - ./protocols:/opt/protocols:ro
+    networks:
+      qkdn:
+        ipv4_address: 172.20.0.11
+
+  node2:
+    build:
+      context: .
+      dockerfile: Dockerfile.ssh
+      args:
+        PYTHON_PACKAGES: "qd2_node sequence pika pyyaml"
+        PYTHON_PACKAGES_NODEPS: "qd2_controller"
+    container_name: qkdn-node-b
+    hostname: node2
+    volumes:
+      - ./protocols:/opt/protocols:ro
+    networks:
+      qkdn:
+        ipv4_address: 172.20.0.12
+
+networks:
+  qkdn:
+    name: qkdn
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

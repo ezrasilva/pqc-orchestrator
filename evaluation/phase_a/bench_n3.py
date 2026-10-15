@@ -303,10 +303,20 @@ def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
     duration_s = spacing_s * (repetitions + 2)
 
     ping = rekey_traffic.PingProbe(CU_NETNS, cu_ip, edge_ip, ping_interval_s)
-    iperf = rekey_traffic.IperfUdpProbe(CU_NETNS, EDGE_NETNS, cu_ip, edge_ip,
-                                        udp_mbps, duration_s)
+    # DOIS fluxos, um por sentido. A primeira versão media só
+    # CU -> borda e por isso reportava interrupção zero na reauth com
+    # make-before-break: com MBB a interrupção existe apenas no sentido
+    # responder -> initiator (ver `phase_a/rekey_traffic.py`). Medir um
+    # sentido só foi o que fez os dois instrumentos parecerem discordar.
+    iperf_fwd = rekey_traffic.IperfUdpProbe(
+        CU_NETNS, cu_ip, EDGE_NETNS, edge_ip, udp_mbps, duration_s,
+        rekey_traffic.IPERF_PORT_FWD, label="fwd")
+    iperf_rev = rekey_traffic.IperfUdpProbe(
+        EDGE_NETNS, edge_ip, CU_NETNS, cu_ip, udp_mbps, duration_s,
+        rekey_traffic.IPERF_PORT_REV, label="rev")
     ping.start()
-    iperf.start()
+    iperf_fwd.start()
+    iperf_rev.start()
     time.sleep(spacing_s)  # regime antes do primeiro evento
 
     events: list[tuple[int, float, float, bool]] = []
@@ -318,8 +328,10 @@ def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
         time.sleep(spacing_s)
 
     ping.stop()
-    iperf.stop()
-    windows = iperf.loss_windows()
+    iperf_fwd.stop()
+    iperf_rev.stop()
+    janelas_fwd = iperf_fwd.loss_windows()
+    janelas_rev = iperf_rev.loss_windows()
 
     # A janela de atribuição vai do pedido até `spacing_s` depois: o
     # `swanctl --rekey` retorna quando o charon ACEITA o pedido, não
@@ -336,7 +348,10 @@ def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
             trigger_seconds=t1 - t0,
             udp_offered_mbps=udp_mbps,
             **rekey_traffic._gap_stats(ping.samples, t0, t_to, ping_interval_s),
-            **rekey_traffic._loss_in_window(windows, t0, t_to),
+            **{f"fwd_{k}": v for k, v in
+               rekey_traffic._loss_in_window(janelas_fwd, t0, t_to).items()},
+            **{f"rev_{k}": v for k, v in
+               rekey_traffic._loss_in_window(janelas_rev, t0, t_to).items()},
         )
 
     # Linha de base no mesmo tráfego, sem nenhum evento: sem ela não há
@@ -362,7 +377,10 @@ def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
             udp_offered_mbps=udp_mbps,
             **rekey_traffic._gap_stats(ping.samples, baseline_from, baseline_to,
                                        ping_interval_s),
-            **rekey_traffic._loss_in_window(windows, baseline_from, baseline_to),
+            **{f"fwd_{k}": v for k, v in
+               rekey_traffic._loss_in_window(janelas_fwd, baseline_from, baseline_to).items()},
+            **{f"rev_{k}": v for k, v in
+               rekey_traffic._loss_in_window(janelas_rev, baseline_from, baseline_to).items()},
         )
 
 

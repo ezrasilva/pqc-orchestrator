@@ -123,7 +123,9 @@ _PING_RE = re.compile(
     r"^\[(?P<ts>\d+\.\d+)\]\s+\d+ bytes from \S+:\s+icmp_seq=(?P<seq>\d+)\s+ttl=\d+\s+time=(?P<rtt>[\d.]+)\s*ms"
 )
 
-IPERF_PORT = 5201
+# Uma porta por sentido: os dois fluxos correm ao mesmo tempo.
+IPERF_PORT_FWD = 5201   # CU -> borda (initiator -> responder)
+IPERF_PORT_REV = 5202   # borda -> CU (responder -> initiator)
 
 # Incerteza da âncora temporal do fluxo UDP, em segundos.
 #
@@ -230,27 +232,53 @@ class PingProbe:
 
 
 class IperfUdpProbe:
-    """iperf3 UDP a taxa fixa atravessando o túnel, com relatório a cada
-    100 ms, lido do SERVIDOR.
+    """Fluxo UDP a taxa fixa atravessando o túnel, num sentido, com
+    relatório a cada 100 ms lido do RECEPTOR.
+
+    **O sentido é parâmetro, e isso não é detalhe.** A primeira versão
+    media só CU -> borda e reportava interrupção ZERO na reauth com
+    make-before-break. Medido com os contadores ICMP do kernel nos dois
+    netns (8 reauths, MBB ligado): a borda recebeu 16165 de 16165
+    requests — nenhuma perda na ida — e a CU recebeu 16158 de 16165
+    replies, ou seja **7 perdidos na volta**. Repetindo com fluxo UDP nos
+    dois sentidos, 197275 pacotes cada: 0 perdidos na ida, **64 na
+    volta** (8 por reauth, ~0,9 ms a 9000 pps).
+
+    Ou seja: com make-before-break a interrupção existe, só que **apenas
+    no sentido responder -> initiator**. A reauth é iniciada pela CU, que
+    troca a própria SA de saída de forma atômica; a borda troca a dela ao
+    processar a troca, e há um instante em que a SA de saída que ela usa
+    não casa com a de entrada instalada na CU.
+
+    Com o sentido certo medido, os dois instrumentos concordam: o ping a
+    1 kHz perde 1 pacote (~1 ms) e o fluxo a 9 kHz perde 8 (~0,9 ms). A
+    divergência que me fez suspeitar da sonda de ping era artefato de
+    medir só o sentido que não quebra.
 
     Taxa fixa (e não saturando) de propósito: a A.2 quer medir a
-    interrupção causada pelo rekey, não o teto do enlace. Saturar faria
-    a perda por congestionamento se confundir com a perda pelo rekey —
-    o teto é assunto da A.3.
+    interrupção causada pelo evento, não o teto do enlace. Saturar faria
+    a perda por congestionamento se confundir com a do evento — o teto é
+    assunto da A.3. Com os dois sentidos ativos são 200 Mbps, ainda bem
+    abaixo dos 2405-2649 Mbps medidos na A.3.
 
-    Ver o docstring do módulo para por que a perda vem do servidor e por
+    Ver o docstring do módulo para por que a perda vem do receptor e por
     que a taxa é de 100 Mbps.
     """
 
-    def __init__(self, cu_netns: str, edge_netns: str, source: str, target: str,
-                 mbps: float, duration_s: float):
-        self.target, self.mbps, self.duration_s = target, mbps, duration_s
-        # `-1` encerra o servidor depois de um teste, para não deixar
-        # processo pendurado entre as medições de perfis consecutivos.
-        self._server_cmd = ["ip", "netns", "exec", edge_netns, "iperf3", "-s",
-                            "-B", target, "-p", str(IPERF_PORT), "-1", "-J", "-i", "0.1"]
-        self._client_cmd = ["ip", "netns", "exec", cu_netns, "iperf3",
-                            "-c", target, "-B", source, "-p", str(IPERF_PORT),
+    def __init__(self, sender_netns: str, sender_addr: str,
+                 receiver_netns: str, receiver_addr: str,
+                 mbps: float, duration_s: float, port: int,
+                 label: str = ""):
+        self.mbps, self.duration_s, self.label = mbps, duration_s, label
+        # O servidor é SEMPRE o receptor: é ele que computa a perda, e é
+        # dele que o JSON sai com `lost_packets` por intervalo. Montar
+        # com `-R` para inverter o sentido coloca a perda no relatório do
+        # cliente, e ler o campo errado foi exatamente o erro que
+        # escondeu a perda na volta.
+        self._server_cmd = ["ip", "netns", "exec", receiver_netns, "iperf3", "-s",
+                            "-B", receiver_addr, "-p", str(port), "-1", "-J", "-i", "0.1"]
+        self._client_cmd = ["ip", "netns", "exec", sender_netns, "iperf3",
+                            "-c", receiver_addr, "-B", sender_addr, "-p", str(port),
                             "-u", "-b", f"{mbps}M", "-t", str(int(duration_s)), "-i", "0.1"]
         self._server: subprocess.Popen | None = None
         self._client: subprocess.Popen | None = None
@@ -281,14 +309,15 @@ class IperfUdpProbe:
 
     def loss_windows(self) -> list[dict]:
         """Perda por janela de 100 ms, com o instante absoluto de cada
-        janela, para casar com os eventos de rekey.
+        janela, para casar com os eventos.
 
         A âncora absoluta vem de `start.timestamp.timesecs` do próprio
         JSON do servidor — e não do `started_at` medido aqui — porque os
         `start`/`end` dos intervalos são relativos ao PRIMEIRO PACOTE
         recebido pelo servidor, não ao instante em que este processo
         lançou o cliente. Usar o relógio local introduziria o atraso de
-        arranque do iperf3 como erro sistemático na atribuição.
+        arranque do iperf3 como erro sistemático. Mas `timesecs` é
+        INTEIRO em segundos, daí a margem de UDP_ANCHOR_UNCERTAINTY_S.
         """
         if not self.result:
             return []
@@ -302,7 +331,6 @@ class IperfUdpProbe:
         janelas = []
         for intervalo in self.result.get("intervals", []):
             s = intervalo.get("sum", {})
-            perdidos = s.get("lost_packets")
             janelas.append({
                 "t_start": ancora + s.get("start", 0.0),
                 "t_end": ancora + s.get("end", 0.0),
@@ -310,7 +338,7 @@ class IperfUdpProbe:
                 # None quando o JSON não traz a chave — distingue
                 # "nenhuma perda" de "não medido", que foi exatamente a
                 # confusão da primeira versão deste módulo.
-                "lost": perdidos,
+                "lost": s.get("lost_packets"),
                 "jitter_ms": s.get("jitter_ms"),
             })
         return janelas

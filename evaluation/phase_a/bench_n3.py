@@ -278,8 +278,8 @@ def _ensure_established(charon_pid: int, timeout_s: float = 30.0) -> None:
 
 
 def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
-                  make_before_break: bool | None, udp_mbps: float = 10.0,
-                  ping_interval_s: float = 0.001, spacing_s: float = 2.0) -> None:
+                  make_before_break: bool | None, udp_mbps: float = 100.0,
+                  ping_interval_s: float = 0.001, spacing_s: float = 4.0) -> None:
     """Métrica A.2 — perda, pico de RTT e interrupção por evento de
     rekey/reauth, sob tráfego.
 
@@ -342,9 +342,18 @@ def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
     # Linha de base no mesmo tráfego, sem nenhum evento: sem ela não há
     # como dizer se o pico de RTT de um rekey é do rekey ou do ruído da
     # bancada. Pega a folga inicial, anterior ao primeiro evento.
+    #
+    # A GUARDA de `UDP_ANCHOR_UNCERTAINTY_S` existe porque a atribuição
+    # do fluxo UDP alarga a janela por essa margem nos dois lados (a
+    # âncora do iperf3 tem granularidade de 1 s). Sem a guarda, a janela
+    # alargada da linha de base invadiria o primeiro evento e reportaria
+    # como ruído de fundo a perda causada por ele — foi exatamente o que
+    # aconteceu na primeira versão, que creditou 16 pacotes perdidos a um
+    # trecho que deveria ser silencioso.
     if events:
-        baseline_to = events[0][1]
-        baseline_from = baseline_to - spacing_s
+        guarda = rekey_traffic.UDP_ANCHOR_UNCERTAINTY_S
+        baseline_to = events[0][1] - 2 * guarda
+        baseline_from = baseline_to - spacing_s / 2
         emit(
             "phase_a_rekey_baseline",
             profile=profile.name,
@@ -503,7 +512,7 @@ def main() -> int:
                         help="A.2 — yes, no, ou 'both' para medir os dois. Só afeta "
                              "ike_reauth: o rekey de Child SA é sempre make-before-break "
                              "por imposição da RFC 7296")
-    parser.add_argument("--udp-mbps", type=float, default=10.0,
+    parser.add_argument("--udp-mbps", type=float, default=100.0,
                         help="A.2 — taxa fixa do iperf3 UDP sob o rekey")
     parser.add_argument("--children", default="3,10,30",
                         help="A.4 — quantidades de Child SAs simultâneas a medir")

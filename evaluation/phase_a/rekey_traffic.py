@@ -47,7 +47,25 @@ complementares:
   `child_rekey`.
 * **iperf3 UDP a taxa fixa** com `-i 0.1` — dá perda por janela de
   100 ms, atribuível a cada evento, a uma taxa de pacotes muito maior
-  que 100 Hz.
+  que a do ping.
+
+  **A perda é lida do SERVIDOR, não do cliente.** Medido (15/10): o JSON
+  do cliente não traz `lost_packets` em `intervals[].sum` — a chave não
+  existe ali, só em `end.sum`. É consequência do protocolo: no UDP a
+  perda é calculada pelo RECEPTOR, e o cliente só sabe o que enviou. A
+  primeira versão deste módulo lia `intervals[].sum.lost_packets` do
+  cliente com default 0, então reportava **perda zero em todas as
+  janelas, estruturalmente** — a coluna não media nada. O servidor
+  rodado com `-J -i 0.1` traz `lost_packets` e `jitter_ms` por
+  intervalo, e é dele que a atribuição sai.
+
+  **Taxa de 100 Mbps, não 10.** A 10 Mbps são ~900 pacotes/s, ou um
+  pacote a cada 1,1 ms — a mesma resolução do ping de 1 kHz, de modo que
+  o UDP não acrescentava sensibilidade nenhuma a uma interrupção de
+  ~1 ms. A 100 Mbps são ~9000 pacotes/s, ou ~9 pacotes por milissegundo
+  de interrupção. Continua longe de saturar (a A.3 mediu 2466 Mbps de
+  teto com AES-128-GCM), então a A.2 segue medindo interrupção e não
+  congestionamento.
 
 A conclusão que se espera poder sustentar é "o rekey de Child SA não
 perde pacote, a reauth sem MBB perde N" — e para isso a combinação
@@ -80,6 +98,27 @@ _PING_RE = re.compile(
 )
 
 IPERF_PORT = 5201
+
+# Incerteza da âncora temporal do fluxo UDP, em segundos.
+#
+# **Por que existe**: os `start`/`end` dos intervalos do iperf3 são
+# relativos ao início do teste, e a única âncora absoluta no JSON é
+# `start.timestamp.timesecs` — que é um INTEIRO em segundos. Medido:
+# âncora 1792076681 contra 1792076681,8 de relógio local, ou 0,84 s de
+# defasagem só por truncamento. Com janelas de 100 ms isso é erro
+# grande, e foi o que estragou a primeira versão: a janela da linha de
+# base, calculada como os 2 s anteriores ao primeiro evento, caía em
+# cima do próprio evento e reportava 16 pacotes perdidos num trecho que
+# deveria ser silencioso.
+#
+# A atribuição por evento é alargada por esta margem nos dois lados. Dá
+# para fazer isso sem perder o sentido porque o piso de ruído do fluxo
+# UDP é ZERO: medido 0 perdidos em 107.605 pacotes a 100 Mbps com a
+# sonda de 1 kHz rodando junto e nenhum evento. Então qualquer perda
+# dentro da janela alargada é atribuível ao evento, mesmo que a janela
+# seja folgada — o que exige apenas que os eventos fiquem mais afastados
+# entre si que a margem (ver `spacing_s`).
+UDP_ANCHOR_UNCERTAINTY_S = 1.0
 
 
 @dataclass
@@ -149,66 +188,89 @@ class PingProbe:
 
 class IperfUdpProbe:
     """iperf3 UDP a taxa fixa atravessando o túnel, com relatório a cada
-    100 ms.
+    100 ms, lido do SERVIDOR.
 
     Taxa fixa (e não saturando) de propósito: a A.2 quer medir a
     interrupção causada pelo rekey, não o teto do enlace. Saturar faria
     a perda por congestionamento se confundir com a perda pelo rekey —
     o teto é assunto da A.3.
+
+    Ver o docstring do módulo para por que a perda vem do servidor e por
+    que a taxa é de 100 Mbps.
     """
 
     def __init__(self, cu_netns: str, edge_netns: str, source: str, target: str,
                  mbps: float, duration_s: float):
         self.target, self.mbps, self.duration_s = target, mbps, duration_s
+        # `-1` encerra o servidor depois de um teste, para não deixar
+        # processo pendurado entre as medições de perfis consecutivos.
         self._server_cmd = ["ip", "netns", "exec", edge_netns, "iperf3", "-s",
-                            "-B", target, "-p", str(IPERF_PORT)]
+                            "-B", target, "-p", str(IPERF_PORT), "-1", "-J", "-i", "0.1"]
         self._client_cmd = ["ip", "netns", "exec", cu_netns, "iperf3",
                             "-c", target, "-B", source, "-p", str(IPERF_PORT),
-                            "-u", "-b", f"{mbps}M", "-t", str(int(duration_s)),
-                            "-i", "0.1", "-J"]
+                            "-u", "-b", f"{mbps}M", "-t", str(int(duration_s)), "-i", "0.1"]
         self._server: subprocess.Popen | None = None
         self._client: subprocess.Popen | None = None
         self.result: dict | None = None
         self.started_at: float | None = None
 
     def start(self) -> None:
-        self._server = subprocess.Popen(self._server_cmd, stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL)
+        self._server = subprocess.Popen(self._server_cmd, stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, text=True)
         time.sleep(0.5)  # deixa o servidor fazer bind antes de o cliente conectar
         self.started_at = time.time()
-        self._client = subprocess.Popen(self._client_cmd, stdout=subprocess.PIPE,
-                                        stderr=subprocess.DEVNULL, text=True)
+        self._client = subprocess.Popen(self._client_cmd, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL)
 
     def stop(self) -> None:
         if self._client:
             try:
-                out, _ = self._client.communicate(timeout=self.duration_s + 15)
-                self.result = json.loads(out) if out.strip() else None
-            except (subprocess.TimeoutExpired, json.JSONDecodeError):
-                self._client.kill()
-                self.result = None
-        if self._server:
-            self._server.terminate()
-            try:
-                self._server.wait(timeout=5)
+                self._client.wait(timeout=self.duration_s + 15)
             except subprocess.TimeoutExpired:
+                self._client.kill()
+        if self._server:
+            try:
+                saida, _ = self._server.communicate(timeout=20)
+                self.result = json.loads(saida) if saida.strip() else None
+            except (subprocess.TimeoutExpired, json.JSONDecodeError):
                 self._server.kill()
+                self.result = None
 
     def loss_windows(self) -> list[dict]:
         """Perda por janela de 100 ms, com o instante absoluto de cada
-        janela, para casar com os eventos de rekey."""
-        if not self.result or self.started_at is None:
+        janela, para casar com os eventos de rekey.
+
+        A âncora absoluta vem de `start.timestamp.timesecs` do próprio
+        JSON do servidor — e não do `started_at` medido aqui — porque os
+        `start`/`end` dos intervalos são relativos ao PRIMEIRO PACOTE
+        recebido pelo servidor, não ao instante em que este processo
+        lançou o cliente. Usar o relógio local introduziria o atraso de
+        arranque do iperf3 como erro sistemático na atribuição.
+        """
+        if not self.result:
             return []
-        windows = []
-        for interval in self.result.get("intervals", []):
-            s = interval.get("sum", {})
-            windows.append({
-                "t_start": self.started_at + s.get("start", 0.0),
-                "t_end": self.started_at + s.get("end", 0.0),
+        ancora = (self.result.get("start", {})
+                  .get("timestamp", {})
+                  .get("timesecs"))
+        if ancora is None:
+            ancora = self.started_at
+        if ancora is None:
+            return []
+        janelas = []
+        for intervalo in self.result.get("intervals", []):
+            s = intervalo.get("sum", {})
+            perdidos = s.get("lost_packets")
+            janelas.append({
+                "t_start": ancora + s.get("start", 0.0),
+                "t_end": ancora + s.get("end", 0.0),
                 "packets": s.get("packets", 0),
-                "lost": s.get("lost_packets", 0),
+                # None quando o JSON não traz a chave — distingue
+                # "nenhuma perda" de "não medido", que foi exatamente a
+                # confusão da primeira versão deste módulo.
+                "lost": perdidos,
+                "jitter_ms": s.get("jitter_ms"),
             })
-        return windows
+        return janelas
 
 
 def _nsenter(charon_pid: int, *args: str) -> list[str]:
@@ -288,9 +350,49 @@ def _gap_stats(samples: list[PingSample], t_from: float, t_to: float,
 
 
 def _loss_in_window(windows: list[dict], t_from: float, t_to: float) -> dict:
-    overlapping = [w for w in windows if w["t_end"] >= t_from and w["t_start"] <= t_to]
+    """Agrega as janelas de 100 ms do iperf3 que cobrem o evento.
+
+    `udp_lost = None` significa NÃO MEDIDO, não zero — ver o docstring do
+    módulo. A primeira versão confundia as duas coisas e reportava perda
+    zero estruturalmente.
+    """
+    # Alarga pela incerteza da âncora (ver UDP_ANCHOR_UNCERTAINTY_S).
+    t_from -= UDP_ANCHOR_UNCERTAINTY_S
+    t_to += UDP_ANCHOR_UNCERTAINTY_S
+    cobertas = [w for w in windows if w["t_end"] >= t_from and w["t_start"] <= t_to]
+    perdas = [w["lost"] for w in cobertas if w["lost"] is not None]
+    jitters = [w["jitter_ms"] for w in cobertas if w.get("jitter_ms") is not None]
+    pacotes = sum(w["packets"] for w in cobertas)
+    perdidos = sum(perdas) if (cobertas and len(perdas) == len(cobertas)) else None
+
+    # Interrupção estimada pelo fluxo UDP, em ms.
+    #
+    # **Por que esta estimativa é MELHOR que a do ping**, apesar de
+    # indireta: a do ping é quantizada no passo da sonda (1 ms), e um
+    # único pacote caindo na lacuna já satura a contagem. O fluxo UDP
+    # roda a ~9000 pacotes/s, então conta a lacuna com resolução de
+    # ~0,11 ms. Medido na K2 (15/10): o ping dava 1 ms de interrupção na
+    # reauth, o UDP dá ~3,4 ms a partir de 31 pacotes perdidos. O ping
+    # subestimava por 3x.
+    #
+    # Válida porque o piso de ruído do fluxo é zero — medido 0 perdidos
+    # em 107.605 pacotes sem evento, e 0 nas linhas de base de todas as
+    # repetições. Sem esse piso, converter perda em tempo não teria
+    # sentido.
+    duracao = max((w["t_end"] for w in cobertas), default=0.0) - \
+              min((w["t_start"] for w in cobertas), default=0.0)
+    outage_udp_ms = None
+    if perdidos is not None and duracao > 0 and pacotes > 0:
+        pps = pacotes / duracao
+        outage_udp_ms = 1000.0 * perdidos / pps
+
     return {
-        "udp_windows": len(overlapping),
-        "udp_packets": sum(w["packets"] for w in overlapping),
-        "udp_lost": sum(w["lost"] for w in overlapping),
+        "udp_windows": len(cobertas),
+        "udp_packets": pacotes,
+        # Só soma se TODAS as janelas cobertas trouxeram a chave;
+        # somar um subconjunto subestimaria a perda em silêncio.
+        "udp_lost": perdidos,
+        "udp_pps": (pacotes / duracao) if duracao > 0 else None,
+        "outage_udp_ms": outage_udp_ms,
+        "udp_jitter_max_ms": max(jitters) if jitters else None,
     }

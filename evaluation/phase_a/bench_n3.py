@@ -39,7 +39,7 @@ from pathlib import Path
 from evaluation import instrumentation, lab_control
 from evaluation.collectors.resource import find_charon_pid
 from evaluation.instrumentation import emit
-from evaluation.phase_a import netem, rekey_traffic
+from evaluation.phase_a import dataplane, netem, rekey_traffic, scale
 from evaluation.phase_a.profiles import ALL_PROFILES, Profile, by_name
 
 CONN_NAME = "phasea"
@@ -357,12 +357,137 @@ def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
         )
 
 
+def measure_dataplane(profile: Profile, duration_s: int, streams: int) -> None:
+    """Métrica A.3 — teto de vazão, RTT a vazio e sob carga, e softirq,
+    para a cifra de ESP do perfil.
+
+    Ver `phase_a/dataplane.py` para por que o softirq é o contador certo
+    e por que a linha de base sem IPsec usa os endereços externos.
+    """
+    charon_pid = find_charon_pid(CU_NETNS)
+    if charon_pid is None:
+        raise RuntimeError(f"charon não encontrado em {CU_NETNS}")
+    _ensure_established(charon_pid)
+
+    dataplane.measure_one(
+        f"{profile.name}", CU_NETNS, EDGE_NETNS,
+        CU_TS.split("/")[0], EDGE_TS.split("/")[0], duration_s, streams,
+        extra={"profile": profile.name, "esp_proposal": profile.esp_proposal,
+               "ike_proposal": profile.ike_proposal, "ipsec": True},
+    )
+
+
+def measure_dataplane_baseline(duration_s: int, streams: int) -> None:
+    """Linha de base da A.3: o mesmo caminho físico SEM ESP.
+
+    Usa os endereços externos (10.97.0.11 ↔ 10.97.0.12) porque os
+    internos só se alcançam através do túnel — ver docstring de
+    `phase_a/dataplane.py`. Sem esta linha, os números de vazão por
+    cifra não têm contra o que ser comparados: não daria para dizer se
+    um teto de X Mbps é limite da cifra ou do enlace.
+    """
+    dataplane.measure_one(
+        "SEM-IPSEC", CU_NETNS, EDGE_NETNS, CU_ADDR, EDGE_ADDR,
+        duration_s, streams,
+        extra={"profile": None, "esp_proposal": None, "ipsec": False,
+               "note": "endereços externos: mesmo par veth, sem ESP"},
+    )
+
+
+def _conn_conf_scale(profile: Profile, n: int, local_addr: str, remote_addr: str,
+                     mirror: bool) -> str:
+    """Config com N Child SAs sob uma única IKE_SA (ver `phase_a/scale.py`
+    para por que uma só)."""
+    ppk_lines = ""
+    if profile.needs_ppk:
+        ppk_lines = f"        ppk_id = {PPK_ID}\n        ppk_required = yes\n"
+    filhos = scale.children_block(n, CONN_NAME, profile.esp_proposal, mirror)
+    return f"""connections {{
+    {CONN_NAME} {{
+        local_addrs = {local_addr}
+        remote_addrs = {remote_addr}
+        proposals = {profile.ike_proposal}
+        local {{ auth = psk }}
+        remote {{ auth = psk }}
+{ppk_lines}        children {{
+{filhos}
+        }}
+        version = 2
+    }}
+}}
+"""
+
+
+def apply_profile_scale(profile: Profile, n: int) -> None:
+    """Como `apply_profile`, mas com N Child SAs. Mantém o mesmo PSK/PPK
+    novo por aplicação e o mesmo `start_action = none` nos dois lados."""
+    psk = pysecrets.token_urlsafe(32)
+    ppk_hex = pysecrets.token_bytes(32).hex() if profile.needs_ppk else None
+
+    base = lab_control.LIVE_LAB_IPSEC_DIR
+    (base / "swanctl-cu" / "conf.d" / "connections.conf").write_text(
+        _conn_conf_scale(profile, n, CU_ADDR, EDGE_ADDR, mirror=False))
+    (base / "swanctl-edge" / "conf.d" / "connections.conf").write_text(
+        _conn_conf_scale(profile, n, EDGE_ADDR, CU_ADDR, mirror=True))
+    for side in ("swanctl-cu", "swanctl-edge"):
+        path = base / side / "conf.d" / "secrets.conf"
+        path.write_text(_secrets_conf(psk, ppk_hex))
+        path.chmod(0o600)
+
+    lab_control.restart_ipsec_lab((CU_NETNS, EDGE_NETNS))
+    for netns in (EDGE_NETNS, CU_NETNS):
+        pid = find_charon_pid(netns)
+        if pid is None:
+            raise RuntimeError(f"charon não subiu em {netns} (A.4, n={n})")
+        subprocess.run(_nsenter(pid, "swanctl", "--load-all"), capture_output=True, check=True)
+
+
+def measure_scale(profile: Profile, n: int, repetitions: int) -> None:
+    """Métrica A.4 — N Child SAs fazendo rekey ao mesmo tempo."""
+    scale.setup_addresses(n, CU_NETNS, EDGE_NETNS)
+    try:
+        apply_profile_scale(profile, n)
+        charon_pid = find_charon_pid(CU_NETNS)
+        if charon_pid is None:
+            raise RuntimeError(f"charon não encontrado em {CU_NETNS}")
+        cmd = _nsenter(charon_pid)
+
+        # Sobe as N Child SAs. Sequencial de propósito: a A.4 mede o
+        # custo do REKEY simultâneo, não o da subida inicial — e subir
+        # N de uma vez só adicionaria uma variável.
+        subidas = 0
+        for i in range(1, n + 1):
+            res = subprocess.run([*cmd, "swanctl", "--initiate", "--child", f"{CONN_NAME}-{i}"],
+                                 capture_output=True, text=True)
+            subidas += res.returncode == 0
+        emit("phase_a_scale_setup", profile=profile.name, n_children=n,
+             n_established=subidas)
+        if subidas < n:
+            print(f"  [{profile.name}] n={n}: só {subidas}/{n} Child SAs subiram — "
+                  f"o rekey mede menos do que se pediu")
+
+        for rep in range(1, repetitions + 1):
+            resultados = scale.rekey_all_concurrently(cmd, CONN_NAME, n)
+            scale.emit_scale_result(profile.name, n, rep, resultados)
+            duracoes = sorted(r["seconds"] for r in resultados)
+            ok = sum(1 for r in resultados if r["ok"])
+            print(f"  [{profile.name}] n={n:>2} rep {rep:>2}: {ok}/{n} ok  "
+                  f"parede {resultados[0]['wall_total_seconds']*1000:>7.1f} ms  "
+                  f"por-filho p50 {duracoes[len(duracoes)//2]*1000:>7.1f} ms  "
+                  f"max {duracoes[-1]*1000:>7.1f} ms")
+            time.sleep(1.0)  # deixa o charon assentar entre rodadas
+    finally:
+        scale.teardown_addresses(n, CU_NETNS, EDGE_NETNS)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--measurement", default="handshake",
-                        choices=["handshake", "rekey"],
-                        help="handshake = A.1, rekey = A.2 (sob tráfego)")
+                        choices=["handshake", "rekey", "dataplane", "scale"],
+                        help="handshake = A.1, rekey = A.2 (sob tráfego), "
+                             "dataplane = A.3 (vazão/RTT/softirq por cifra do ESP), "
+                             "scale = A.4 (N Child SAs em rekey simultâneo)")
     parser.add_argument("--profiles", default="K0,K1,K2,K3,K4",
                         help="lista separada por vírgula (ver phase_a/profiles.py)")
     parser.add_argument("--repetitions", type=int, default=30)
@@ -380,6 +505,14 @@ def main() -> int:
                              "por imposição da RFC 7296")
     parser.add_argument("--udp-mbps", type=float, default=10.0,
                         help="A.2 — taxa fixa do iperf3 UDP sob o rekey")
+    parser.add_argument("--children", default="3,10,30",
+                        help="A.4 — quantidades de Child SAs simultâneas a medir")
+    parser.add_argument("--duration", type=int, default=30,
+                        help="A.3 — duração de cada ponto de iperf3, em segundos")
+    parser.add_argument("--streams", type=int, default=4,
+                        help="A.3 — fluxos TCP paralelos do iperf3. Mais de um porque "
+                             "um fluxo só pode ficar limitado pela janela TCP em vez "
+                             "da cifra, que é o que se quer medir")
     parser.add_argument("--no-shuffle", dest="shuffle", action="store_false",
                         help="roda os perfis na ordem dada em vez de sortear")
     parser.add_argument("--no-restore", dest="restore", action="store_false",
@@ -429,6 +562,11 @@ def main() -> int:
             print(f"\n### RTT: netem {rtt} ms/sentido -> medido {measured} ms de RTT")
             emit("phase_a_rtt_axis", netem_delay_ms=rtt, measured_rtt_ms=measured)
 
+            if args.measurement == "dataplane":
+                # Antes dos perfis, e dentro do mesmo ponto de RTT: a
+                # linha de base tem de pagar o mesmo netem que eles.
+                measure_dataplane_baseline(args.duration, args.streams)
+
             for mbb in mbb_values:
                 # Muda a opção ANTES de aplicar o perfil: é o restart do
                 # charon feito pelo apply_profile que a faz valer.
@@ -442,6 +580,11 @@ def main() -> int:
                     apply_profile(profile)
                     if args.measurement == "handshake":
                         measure_handshake(profile, args.repetitions)
+                    elif args.measurement == "dataplane":
+                        measure_dataplane(profile, args.duration, args.streams)
+                    elif args.measurement == "scale":
+                        for n in [int(v) for v in args.children.split(",")]:
+                            measure_scale(profile, n, args.repetitions)
                     else:
                         for kind in event_kinds:
                             print(f"  evento: {kind}")

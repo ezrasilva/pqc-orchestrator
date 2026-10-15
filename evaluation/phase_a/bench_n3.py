@@ -39,6 +39,7 @@ from pathlib import Path
 from evaluation import instrumentation, lab_control
 from evaluation.collectors.resource import find_charon_pid
 from evaluation.instrumentation import emit
+from evaluation.phase_a import netem, rekey_traffic
 from evaluation.phase_a.profiles import ALL_PROFILES, Profile, by_name
 
 CONN_NAME = "phasea"
@@ -253,14 +254,132 @@ def measure_handshake(profile: Profile, repetitions: int) -> None:
             print(f"  [{profile.name}] rep {rep}: NÃO estabeleceu (returncode={proc.returncode})")
 
 
+def _is_established(charon_pid: int) -> bool:
+    res = subprocess.run(_nsenter(charon_pid, "swanctl", "--list-sas", "--ike", CONN_NAME),
+                         capture_output=True, text=True)
+    return "INSTALLED" in res.stdout
+
+
+def _ensure_established(charon_pid: int, timeout_s: float = 30.0) -> None:
+    """Garante uma Child SA de pé, sem falhar se já havia uma."""
+    if _is_established(charon_pid):
+        return
+    res = subprocess.run(_nsenter(charon_pid, "swanctl", "--initiate", "--child", CONN_NAME),
+                         capture_output=True, text=True)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if _is_established(charon_pid):
+            return
+        time.sleep(0.5)
+    raise RuntimeError(
+        f"Child SA {CONN_NAME} não estabeleceu em {timeout_s}s "
+        f"(returncode={res.returncode}): {res.stdout.strip()[-400:]}"
+    )
+
+
+def measure_rekey(profile: Profile, repetitions: int, event_kind: str,
+                  make_before_break: bool | None, udp_mbps: float = 10.0,
+                  ping_interval_s: float = 0.001, spacing_s: float = 2.0) -> None:
+    """Métrica A.2 — perda, pico de RTT e interrupção por evento de
+    rekey/reauth, sob tráfego.
+
+    Ver `phase_a/rekey_traffic.py` para por que há três combinações de
+    evento × make-before-break e qual a resolução de cada gerador.
+    """
+    charon_pid = find_charon_pid(CU_NETNS)
+    if charon_pid is None:
+        raise RuntimeError(f"charon não encontrado em {CU_NETNS}")
+
+    # O túnel tem de estar de pé ANTES de o tráfego começar: medir um
+    # rekey exige uma SA existente para renovar. Idempotente de
+    # propósito — medições consecutivas no mesmo perfil (child_rekey e
+    # depois ike_reauth) reaproveitam a SA, e `--initiate` sobre uma
+    # Child SA já estabelecida retorna erro.
+    _ensure_established(charon_pid)
+
+    cu_ip, edge_ip = CU_TS.split("/")[0], EDGE_TS.split("/")[0]
+    # Folga nos dois extremos para o tráfego já estar em regime no
+    # primeiro evento e ainda correr depois do último.
+    duration_s = spacing_s * (repetitions + 2)
+
+    ping = rekey_traffic.PingProbe(CU_NETNS, cu_ip, edge_ip, ping_interval_s)
+    iperf = rekey_traffic.IperfUdpProbe(CU_NETNS, EDGE_NETNS, cu_ip, edge_ip,
+                                        udp_mbps, duration_s)
+    ping.start()
+    iperf.start()
+    time.sleep(spacing_s)  # regime antes do primeiro evento
+
+    events: list[tuple[int, float, float, bool]] = []
+    for rep in range(1, repetitions + 1):
+        t0, t1, ok = rekey_traffic.trigger_event(charon_pid, CONN_NAME, event_kind)
+        events.append((rep, t0, t1, ok))
+        if not ok:
+            print(f"  [{profile.name}/{event_kind}] rep {rep}: swanctl falhou")
+        time.sleep(spacing_s)
+
+    ping.stop()
+    iperf.stop()
+    windows = iperf.loss_windows()
+
+    # A janela de atribuição vai do pedido até `spacing_s` depois: o
+    # `swanctl --rekey` retorna quando o charon ACEITA o pedido, não
+    # quando o rekey conclui, então a interrupção cai depois do retorno.
+    for rep, t0, t1, ok in events:
+        t_to = t1 + spacing_s
+        emit(
+            "phase_a_rekey",
+            profile=profile.name,
+            repetition=rep,
+            event_kind=event_kind,
+            make_before_break=make_before_break,
+            ok=ok,
+            trigger_seconds=t1 - t0,
+            udp_offered_mbps=udp_mbps,
+            **rekey_traffic._gap_stats(ping.samples, t0, t_to, ping_interval_s),
+            **rekey_traffic._loss_in_window(windows, t0, t_to),
+        )
+
+    # Linha de base no mesmo tráfego, sem nenhum evento: sem ela não há
+    # como dizer se o pico de RTT de um rekey é do rekey ou do ruído da
+    # bancada. Pega a folga inicial, anterior ao primeiro evento.
+    if events:
+        baseline_to = events[0][1]
+        baseline_from = baseline_to - spacing_s
+        emit(
+            "phase_a_rekey_baseline",
+            profile=profile.name,
+            event_kind=event_kind,
+            make_before_break=make_before_break,
+            udp_offered_mbps=udp_mbps,
+            **rekey_traffic._gap_stats(ping.samples, baseline_from, baseline_to,
+                                       ping_interval_s),
+            **rekey_traffic._loss_in_window(windows, baseline_from, baseline_to),
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--measurement", default="handshake", choices=["handshake"],
-                        help="qual medição da Fase A rodar (por enquanto só A.1)")
+    parser.add_argument("--measurement", default="handshake",
+                        choices=["handshake", "rekey"],
+                        help="handshake = A.1, rekey = A.2 (sob tráfego)")
     parser.add_argument("--profiles", default="K0,K1,K2,K3,K4",
                         help="lista separada por vírgula (ver phase_a/profiles.py)")
     parser.add_argument("--repetitions", type=int, default=30)
+    parser.add_argument("--rtt-ms", default="0",
+                        help="A.6 — eixo de RTT: atraso netem POR SENTIDO, em ms, "
+                             "separado por vírgula (ex. 0,5,20). O RTT resultante é o "
+                             "dobro de cada valor")
+    parser.add_argument("--event-kind", default="child_rekey",
+                        help="A.2 — child_rekey e/ou ike_reauth, separados por vírgula. "
+                             "A renovação de PPK exige ike_reauth: o PPK só entra na "
+                             "derivação no IKE_AUTH")
+    parser.add_argument("--make-before-break", default="yes",
+                        help="A.2 — yes, no, ou 'both' para medir os dois. Só afeta "
+                             "ike_reauth: o rekey de Child SA é sempre make-before-break "
+                             "por imposição da RFC 7296")
+    parser.add_argument("--udp-mbps", type=float, default=10.0,
+                        help="A.2 — taxa fixa do iperf3 UDP sob o rekey")
     parser.add_argument("--no-shuffle", dest="shuffle", action="store_false",
                         help="roda os perfis na ordem dada em vez de sortear")
     parser.add_argument("--no-restore", dest="restore", action="store_false",
@@ -288,14 +407,50 @@ def main() -> int:
         random.shuffle(profiles)
         print(f"ordem sorteada: {[p.name for p in profiles]}")
 
+    rtts = [float(v) for v in args.rtt_ms.split(",")]
+    event_kinds = [k.strip() for k in args.event_kind.split(",")]
+    # O make-before-break só tem sentido na A.2, e só no caminho de
+    # reauth; na A.1 ele não participa, então não gera combinações.
+    if args.measurement != "rekey":
+        mbb_values: list[bool | None] = [None]
+    elif args.make_before_break == "both":
+        mbb_values = [True, False]
+    else:
+        mbb_values = [args.make_before_break == "yes"]
+
     backup = backup_lab_config()
     try:
-        for profile in profiles:
-            print(f"=== perfil {profile.name} ({profile.ike_proposal} / ESP {profile.esp_proposal}) ===")
-            apply_profile(profile)
-            measure_handshake(profile, args.repetitions)
+        for rtt in rtts:
+            # Ordem importa: o netem é aplicado ANTES de medir, e o RTT
+            # efetivo é medido depois de aplicar, para o relatório não
+            # depender de fé no `tc`.
+            netem.apply(rtt)
+            measured = netem.measured_rtt_ms()
+            print(f"\n### RTT: netem {rtt} ms/sentido -> medido {measured} ms de RTT")
+            emit("phase_a_rtt_axis", netem_delay_ms=rtt, measured_rtt_ms=measured)
+
+            for mbb in mbb_values:
+                # Muda a opção ANTES de aplicar o perfil: é o restart do
+                # charon feito pelo apply_profile que a faz valer.
+                rekey_traffic.set_make_before_break(mbb)
+                if mbb is not None:
+                    print(f"--- make_before_break = {'yes' if mbb else 'no'}")
+
+                for profile in profiles:
+                    print(f"=== perfil {profile.name} "
+                          f"({profile.ike_proposal} / ESP {profile.esp_proposal}) ===")
+                    apply_profile(profile)
+                    if args.measurement == "handshake":
+                        measure_handshake(profile, args.repetitions)
+                    else:
+                        for kind in event_kinds:
+                            print(f"  evento: {kind}")
+                            measure_rekey(profile, args.repetitions, kind, mbb,
+                                          udp_mbps=args.udp_mbps)
     finally:
         instrumentation.reset()
+        netem.clear()
+        rekey_traffic.set_make_before_break(None)
         if args.restore:
             print("restaurando a config por-fatia da Fase B...")
             restore_lab_config(backup)

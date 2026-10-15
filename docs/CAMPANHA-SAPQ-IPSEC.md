@@ -78,11 +78,65 @@ A Fase A mede o custo de cada perfil no próprio enlace N3, entre os namespaces 
 > interrupção de rekey de 1–20 ms é nítida na bancada e invisível pelo rádio.
 
 1. **Handshake:** 30 reauths por perfil, medindo o tempo total e cada troca (IKE\_SA\_INIT, IKE\_INTERMEDIATE, IKE\_AUTH), bytes no fio, número de mensagens e fragmentos.
-2. **Rekey da Child SA sob tráfego:** ping a 100 Hz e iperf3 UDP a taxa fixa atravessando o túnel, com 30 rekeys por perfil. Mede perda de pacotes, pico de RTT e duração da interrupção, com make-before-break ligado e desligado.
+2. **Rekey e reauth sob tráfego:** ping a **1 kHz** e iperf3 UDP a taxa fixa atravessando o túnel, com 30 eventos por perfil. Mede perda de pacotes, pico de RTT e duração da interrupção, em três combinações: rekey de Child SA, reauth com make-before-break e reauth sem. Ver "Duas correções de método na A.2" abaixo — a especificação original (100 Hz, make-before-break aplicado ao rekey de Child SA) não se sustentou na medição.
 3. **Plano de dados:** iperf3 TCP saturando o N3 com cada cifra do ESP (e sem IPsec), mais RTT a vazio e sob carga. Reporta throughput máximo, P50/P95/P99 de RTT e CPU em softirq.
 4. **Escala:** 3, 10 e 30 Child SAs simultâneas fazendo rekey juntas, para ver se o custo cresce linearmente.
 5. **Microbenchmark de KEM:** keygen, encaps e decaps de todos os KEMs do catálogo via liboqs, para os que o strongSwan não suportar.
 6. **RTT do enlace como eixo:** repetir A.1 e A.2 com latência artificial no caminho N3 (`tc qdisc ... netem delay`), em pelo menos 0 ms (bancada pura), 5 ms e 20 ms por sentido.
+
+### Resultado da A.5: o custo do PQC no handshake não é de CPU
+
+41 KEMs medidos via liboqs 0.16.0, 100 repetições cada, todos bem-sucedidos (p50, em µs). A coluna "strongSwan" diz se o KEM também é mediável fim a fim pela A.1; os demais só existem aqui.
+
+| KEM | NIST | keygen | encaps | decaps | total | pk (B) | ct (B) | strongSwan |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ML-KEM-512 | 1 | 15.4 | 18.0 | 18.6 | 52 | 800 | 768 | sim |
+| ML-KEM-768 | 3 | 21.9 | 24.2 | 26.3 | 72 | 1184 | 1088 | sim |
+| ML-KEM-1024 | 5 | 27.4 | 30.5 | 34.2 | 92 | 1568 | 1568 | sim |
+| HQC-1 | 1 | 2785.0 | 5548.0 | 8431.9 | 16765 | 2241 | 4433 | — |
+| HQC-3 | 3 | 8426.5 | 16803.2 | 25345.3 | 50575 | 4514 | 8978 | — |
+| HQC-5 | 5 | 20655.5 | 41234.3 | 62128.2 | 124018 | 7237 | 14421 | — |
+| FrodoKEM-640-AES | 1 | 602.9 | 903.5 | 869.0 | 2375 | 9616 | 9752 | — |
+| FrodoKEM-976-AES | 3 | 1191.8 | 1656.0 | 1600.5 | 4448 | 15632 | 15792 | — |
+| FrodoKEM-1344-AES | 5 | 2057.8 | 2868.2 | 2806.2 | 7732 | 21520 | 21696 | — |
+| BIKE-L1 | 1 | 558.8 | 63.5 | 985.6 | 1608 | 1541 | 1573 | — |
+| BIKE-L3 | 3 | 1115.1 | 132.3 | 3215.4 | 4463 | 3083 | 3115 | — |
+| BIKE-L5 | 5 | 2493.1 | 264.3 | 7985.0 | 10742 | 5122 | 5154 | — |
+| sntrup761 | 2 | 10179.2 | 209.6 | 407.0 | 10796 | 1158 | 1039 | — |
+| Classic-McEliece-348864 | 1 | 60976.8 | 69.2 | 71.9 | 61118 | 261120 | 96 | — |
+
+**O que isto fecha.** O ML-KEM-768 custa ~72 µs somando as três operações, contra um handshake de ~30 ms medido na A.1: **0,2%**. Esse é o número que explica, quantitativamente, por que a A.1 não vê diferença de tempo entre K0 (x25519) e K4 (ML-KEM-1024) — o custo de CPU do KEM é duas ordens de grandeza menor que o ruído de agendamento do charon. O custo do PQC no plano de controle é de **bytes no fio** e de **round-trips**, não de processamento. É também por isso que a A.6 existe.
+
+**O que isto NÃO autoriza concluir.** Que um KEM mais rápido em liboqs produza handshake mais rápido — a A.1 mostrou que não produz nesta bancada. As duas medições são complementares e a tabela final de custo × perfil precisa das duas colunas, porque é a de bytes que manda.
+
+**Onde a assimetria importa.** O initiator paga keygen + decaps e o responder paga encaps, então as operações são cronometradas separadamente e não em pipeline. Nos KEMs baseados em código a assimetria é extrema: o Classic-McEliece-348864 tem keygen de 61 ms (mil vezes o ML-KEM-768) mas encaps/decaps de ~70 µs, com chave pública de 261 kB — inviável para IKE, onde a chave pública vai no fio.
+
+### Duas correções de método na A.2
+
+Levantadas ao implementar e medir (15/10). As duas invalidariam resultados se não fossem corrigidas.
+
+**1. O make-before-break não se aplica ao rekey de Child SA.** A especificação original pedia a A.2 "com make-before-break ligado e desligado" sobre o rekey de Child SA. Lendo o strongSwan 6.0.4, `charon.make_before_break` (default `yes`) governa a **reautenticação IKEv2**; o rekey de Child SA é sempre make-before-break por imposição da RFC 7296. O caminho é `vici rekey` → `rekey_ike_sa_job` → `ike_sa->reauth()` → `queue_ike_reauth()`, e é nesta última que a opção decide. Confirmado também nos logs do charon, cuja ordem é inequívoca:
+
+| `make_before_break` | Sequência nos logs |
+| --- | --- |
+| `yes` | reauth → **establishing** CHILD_SA → established → deleting IKE_SA → deleted |
+| `no` | reauth → **deleting** IKE_SA → deleted → restarting CHILD_SA → establishing |
+
+Isso **melhora** a medição em vez de enfraquecê-la: a renovação de PPK exige reauth, porque o PPK só entra na derivação no IKE\_AUTH. Logo o toggle incide exatamente sobre o mecanismo central da proposta, e o custo de renovar PPK é o da linha de reauth, não o da linha de rekey de Child SA. A A.2 passou a medir as três combinações.
+
+**2. A sonda de 100 Hz é grosseira demais.** A 100 Hz, uma reauth em break-before-make deu **perda zero em todas as repetições** — o que levaria à conclusão errada de que não há interrupção. Repetindo a 1 kHz na mesma configuração: 1 pacote perdido, interrupção de ~1 ms. Os 100 Hz foram dimensionados supondo que o break-before-make custaria um handshake inteiro (~30 ms); não custa, porque a política XFRM permanece instalada e só o estado é refeito.
+
+Resultado da K2 com a sonda corrigida, 30 repetições por combinação:
+
+| Evento | `make_before_break` | Repetições com perda | Interrupção |
+| --- | --- | --- | --- |
+| rekey de Child SA | n/a (sempre MBB) | **0/30** | 0 ms |
+| reauth | `yes` | 20/30 | 1 ms |
+| reauth | `no` | 27/30 | 1 ms |
+
+As quatro linhas de base (mesmo tráfego, nenhum evento) deram **0 perda em ~8000 pacotes**, o que torna o pacote perdido atribuível ao evento e não a ruído. O make-before-break reduz a **frequência** da perda, não a magnitude.
+
+A linha de base é o que pegou um terceiro erro, este meu: a primeira versão da métrica de interrupção usava o intervalo entre chegadas e dava ~2,1 ms tanto nos rekeys quanto na linha de base sem evento — ou seja, media o jitter de agendamento do próprio `ping`. Passou a ser derivada de números de sequência ausentes.
 
 ### Por que o RTT do enlace precisa ser um eixo
 
@@ -134,7 +188,7 @@ Cada métrica precisa de um ponto de medição que não dependa do rádio. A tab
 | Bytes e fragmentos do IKE | A | tcpdump nas portas UDP 500/4500 |
 | Instalação da SA no kernel | A, B | `ip xfrm monitor` com timestamp |
 | Custo de orquestração (KMS, VICI) | B | `timed()` em volta da busca do PPK e de cada `load_shared` |
-| Interrupção no rekey (perda, pico de RTT) | A, B | ping a 100 Hz e iperf3 UDP atravessando o N3 |
+| Interrupção no rekey (perda, pico de RTT) | A, B | ping a 1 kHz e iperf3 UDP atravessando o N3 |
 | RTT do N3 (P50/P95/P99) | A, B | ping entre os namespaces da CU e do UPF pelo túnel |
 | RTT ponta a ponta da URLLC | B | ping pelo UE, como complemento |
 | Throughput do N3 | A | iperf3 TCP saturando o túnel, por cifra |

@@ -7,26 +7,53 @@ Baseado em [`ezrasilva/Quditto_tutorial`](https://github.com/ezrasilva/Quditto_t
 (clonado em `Quditto_tutorial/`, não versionado aqui), com o backend de
 simulação trocado de **NetSquid** para **SeQUeNCe**.
 
-## Estado (15/10/2026): funcionando
+## Estado (15/10/2026): servindo chaves pela API ETSI 014
 
 | Componente | Estado |
 | --- | --- |
 | Rede `qkdn` (172.20.0.0/16) | criada |
-| `qkdn-orchestrator` (172.20.0.10) | de pé — `qd2_orchestrator 2.1.2` |
-| `qkdn-node-a` (172.20.0.11) | de pé — SeQUeNCe 1.3.0 |
-| `qkdn-node-b` (172.20.0.12) | de pé — SeQUeNCe 1.3.0 |
-
-Validado dentro do container: chave de 256 bits (tamanho do PPK da
-campanha), idêntica nas duas pontas, QBER ~1,4%, 0,22 s de tempo simulado.
+| `qkdn-node-a` (172.20.0.11) | nó + RabbitMQ + `controller.py` |
+| `qkdn-node-b` (172.20.0.12) | nó |
+| `qkdn-orchestrator` (172.20.0.10) | de pé, **não usado** — ver abaixo |
 
 ```bash
 cd ~/quditto-lab
 sudo docker compose up -d
-# teste do protocolo, no mesmo contrato que o controller usa:
-sudo docker exec qkdn-node-a sh -c 'echo "attenuation: 0.2" > /tmp/p.yaml'
-sudo docker exec qkdn-node-a /opt/venv/bin/python3 \
-    /opt/protocols/bb84_sequence.py 256 20 /tmp/p.yaml
+./bootstrap_qkdn.sh          # equivale ao `qd2_orchestrator start`
 ```
+
+Validado de ponta a ponta — chave de 256 bits (tamanho do PPK da campanha),
+**idêntica nas duas pontas**:
+
+```
+A  GET /api/v1/keys/B/enc_keys?size=256
+   -> key_ID 0e2202b9-…, key Z0X3Iqe4nM24jJITNsqmhqwi7Yurq2aAt9rdF/PDjMw=
+B  GET /api/v1/keys/A/dec_keys?key_ID=0e2202b9-…
+   -> key Z0X3Iqe4nM24jJITNsqmhqwi7Yurq2aAt9rdF/PDjMw=    (igual)
+```
+
+## Por que não se usa o `qd2_orchestrator`
+
+O `install()` dele é incompatível com este lab por dois motivos
+independentes (lidos em `orchestratorlib.py` 2.1.2):
+
+1. Exige `netsquid_user`/`netsquid_pwd` no `config.yaml` — `KeyError` sem
+   elas — e monta com esses valores um
+   `pip install --extra-index-url https://USER:PWD@pypi.netsquid.org netsquid`.
+   O índice responde **401**, e aqui o backend é o SeQUeNCe: o NetSquid
+   nunca é chamado. A task falharia e abortaria o resto do play.
+2. As tasks usam `/usr/bin/pip` (pip do sistema), mas os pacotes desta
+   imagem vivem no venv `/opt/venv`; e reinstalariam do PyPI o
+   `qd2_node`/`qd2_controller` que já vêm na imagem.
+
+Fora o `install()`, o orchestrator só faz via Ansible/SSH o que o
+`bootstrap_qkdn.sh` faz via `docker exec`. **O código executado é o do
+próprio QuDitto, sem patch** (`receive_qd2.py`, `http_receptor.py`,
+`controller.py`); só o transporte da orquestração muda — o que também
+dispensa manter as credenciais SSH do `inventory.yaml` em sincronia com a
+imagem. O script documenta a equivalência play por play.
+
+O container do orchestrator fica de pé só para consulta ao pacote.
 
 ## Por que o backend foi trocado
 
@@ -69,13 +96,21 @@ Duas consequências práticas exigiram ajuste:
    PPK idêntico, o script usa a pilha BB84 + **Cascade** (reconciliação de
    erro) — aí as chaves batem.
 
-## Custo de simulação (relevante para o Tr_ppk da campanha)
+## Custo de entrega da chave (relevante para o Tr_ppk da campanha)
 
-~11 s de relógio real por chave, tanto para 128 quanto para 256 bits — o
-custo é dominado pela reconciliação, não pelo tamanho da chave. O desenho
-da campanha já prevê buscar o PPK **fora do caminho crítico do rekey**, o
-que acomoda isso; mas vale lembrar que o `Tr_ppk` da URLLC em escala de
-teste é 30 s, então a pré-busca precisa mesmo ser assíncrona.
+Medido pela API, não só pelo protocolo:
+
+| Operação | Tempo de parede |
+| --- | --- |
+| `enc_keys` (lado master, dispara a simulação) | **~15,4 s** |
+| `dec_keys` (lado slave, chave já distribuída) | **~1,1 s** |
+
+O custo é dominado pela reconciliação (Cascade), não pelo tamanho da
+chave: 128 e 256 bits custam praticamente o mesmo. Como o `Tr_ppk` da
+URLLC em escala de teste é 30 s, **a pré-busca tem de ser assíncrona** —
+15 s dentro do caminho crítico do rekey seria inaceitável. O desenho da
+campanha já prevê buscar o PPK fora desse caminho; esses números são a
+justificativa quantitativa dessa escolha.
 
 ## Topologia simulada
 

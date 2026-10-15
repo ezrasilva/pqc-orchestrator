@@ -41,6 +41,32 @@ complementares:
   Essa é também a razão de a interrupção ser derivada de sequências
   ausentes e não do intervalo entre chegadas — ver `_gap_stats`.
 
+**Qual instrumento manda, quando os dois discordam: o UDP.** Medido na
+campanha de 15/10 (6 perfis x 20 reauths, make-before-break ligado): o
+ping reportou 1 pacote perdido em 87 de 114 repetições, enquanto o fluxo
+UDP, a nove vezes a taxa, perdeu ZERO em 120 de 120. Se houvesse lacuna
+de tráfego, o fluxo mais rápido teria perdido mais, não menos.
+
+O campo `max_interarrival_ms` desambigua, e é por isso que ele existe:
+
+| repetições | `lost` (ping) | `max_interarrival_ms` | `udp_lost` |
+| --- | --- | --- | --- |
+| 87 de 114 | 1 | **~11,1 ms** | 0 |
+| 27 de 114 | 0 | ~1,7–2,3 ms | 0 |
+
+Uma lacuna de 11 ms a 1 kHz deveria deixar ~11 sequências ausentes;
+falta **uma**. Ou seja, o processo `ping` ficou ~11 ms sem ser
+escalonado e nesse intervalo não enviou — enquanto o fluxo UDP, que é
+conduzido pelo kernel, atravessou sem perda nenhuma. Logo o pacote ICMP
+é artefato de escalonamento do processo de sonda sob carga, não
+interrupção da SA.
+
+Consequência prática: **o `outage_ms` derivado do ping não é confiável na
+escala de 1 ms** — a sonda é um processo de userspace e pode parar por
+mais tempo que o evento que se quer medir. O `outage_udp_ms` é a
+estimativa a reportar; o do ping fica como verificação grosseira e o
+`max_interarrival_ms` como sinal de que a sonda travou.
+
 * O `rtt_peak_ms`, lido do próprio `time=` do ping, entra no relatório
   porque tem resolução de µs e mostra o soluço de enfileiramento mesmo
   quando NENHUM pacote se perde — que é o resultado esperado para o
@@ -168,11 +194,28 @@ class PingProbe:
         self._thread = threading.Thread(target=self._read, daemon=True)
         self._thread.start()
 
+    # O `icmp_seq` do ping é de 16 bits e dá a volta em 65535. A 1 kHz
+    # isso acontece a cada 65,5 s, e as execuções da A.2 passam disso
+    # (20 eventos x 4 s = 88 s). Sem desenrolar, as sequências deixam de
+    # ser monotônicas e a contagem de perda por lacuna vira lixo —
+    # medido: uma execução de 88 s reportou perda TOTAL NEGATIVA
+    # (-393125), que é o que denunciou o problema. O desenrolamento é
+    # feito na coleta, onde as amostras chegam em ordem.
+    _SEQ_WRAP = 65536
+
     def _read(self) -> None:
         assert self._proc and self._proc.stdout
+        offset = 0
+        anterior = None
         for line in self._proc.stdout:
             if (m := _PING_RE.match(line.strip())):
-                self.samples.append(PingSample(float(m["ts"]), int(m["seq"]),
+                bruto = int(m["seq"])
+                if anterior is not None and bruto < anterior - self._SEQ_WRAP // 2:
+                    # Queda grande = volta do contador, não reordenação.
+                    # O limiar de meia volta distingue os dois casos.
+                    offset += self._SEQ_WRAP
+                anterior = bruto
+                self.samples.append(PingSample(float(m["ts"]), bruto + offset,
                                                float(m["rtt"])))
 
     def stop(self) -> None:
@@ -314,6 +357,14 @@ def _gap_stats(samples: list[PingSample], t_from: float, t_to: float,
     seqs = [s.seq for s in inside]
     expected = seqs[-1] - seqs[0] + 1
     lost = expected - len(seqs)
+    if lost < 0:
+        # Impossível com as sequências desenroladas; se acontecer, o
+        # desenrolamento falhou e é melhor dizer "não medido" do que
+        # publicar um número sem sentido.
+        return {"samples": len(inside), "lost": None, "rtt_peak_ms": None,
+                "outage_ms": None, "max_consecutive_lost": None,
+                "note": f"sequências não monotônicas (lost={lost}): "
+                        f"desenrolamento do icmp_seq falhou"}
 
     # A interrupção é derivada dos números de sequência AUSENTES, não do
     # intervalo entre chegadas.

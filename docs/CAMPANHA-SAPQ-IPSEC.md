@@ -84,6 +84,59 @@ A Fase A mede o custo de cada perfil no próprio enlace N3, entre os namespaces 
 5. **Microbenchmark de KEM:** keygen, encaps e decaps de todos os KEMs do catálogo via liboqs, para os que o strongSwan não suportar.
 6. **RTT do enlace como eixo:** repetir A.1 e A.2 com latência artificial no caminho N3 (`tc qdisc ... netem delay`), em pelo menos 0 ms (bancada pura), 5 ms e 20 ms por sentido.
 
+### Resultados da Fase A (15/10): a tabela que alimenta a Fase B
+
+Execuções completas, sem falha: A.1 540/540 handshakes, A.2 560 eventos, A.3 4 pontos, A.4 90 rodadas, A.5 41 KEMs.
+
+**A.1 + A.6 — o custo do perfil é de round-trips, não de bytes nem de CPU.** p50 de handshake, em ms:
+
+| Perfil | Trocas | RTT 0,03 ms | RTT 10,1 ms | RTT 40,1 ms | Δ(0→40) / RTT |
+| --- | --- | --- | --- | --- | --- |
+| K0 (x25519, 541 B) | 2 | 29,2 | 49,8 | 110,8 | **2,04** |
+| K1 (ML-KEM-512, 1309 B) | 2 | 31,8 | 49,6 | 110,5 | **1,97** |
+| K2 (ML-KEM-768, 1693 B) | 2 | 29,8 | 49,6 | 110,0 | **2,00** |
+| K3 (híbrido, 1871 B) | **3** | 31,2 | 62,4 | 152,6 | **3,03** |
+| K4 (ML-KEM-1024, 2077 B) | 2 | 29,8 | 49,9 | 110,8 | **2,02** |
+| K5 (K3 + PPK, 1898 B) | **3** | 34,3 | 63,8 | 152,2 | **2,94** |
+
+A última coluna é exatamente o número de trocas de cada perfil. Duas consequências:
+
+* **K4 custa o mesmo que K0 em todos os RTTs**, com quatro vezes os bytes. Nas faixas em jogo (até ~2 kB), bytes no fio não custam tempo mensurável; só custam quando forçam uma troca a mais.
+* **A A.6 se pagou.** A 0,03 ms o híbrido parece barato (K3 em 31,2 contra K2 em 29,8: +1,4 ms, 5%). A 40 ms de RTT a penalidade é de **+42,6 ms (39%)**. Medir só na bancada levaria o artigo à conclusão oposta, justamente para a URLLC — a fatia que o catálogo quer atender com K5.
+
+**A.2 + A.6 — o make-before-break é a diferença entre 0 e 163 ms.** Interrupção p50 medida pelo fluxo UDP:
+
+| Evento | `make_before_break` | RTT 0,06 ms | RTT 10,1 ms | RTT 40,1 ms |
+| --- | --- | --- | --- | --- |
+| rekey de Child SA | indiferente | **0** | **0** | **0** |
+| reauth | `yes` | **0** | **0** | **0** |
+| reauth | `no` | 3,35 ms | 43,8 ms | **163,6 ms** |
+
+A interrupção do break-before-make é **exatamente 4 round-trips**: (163,60 − 3,35)/40,04 = 4,00 e (43,83 − 3,35)/10,06 = 4,02. Ela é a mesma em K0 (x25519) e K4 (ML-KEM-1024), ou seja **não é do KEM** — é o custo de derrubar e reinstalar a SA, e o que escala com o RTT é o número de trocas que isso embute.
+
+Consequência direta para a proposta: a renovação de PPK exige reauth, e num backhaul de 20 ms por sentido deixar `make_before_break = no` custaria **163 ms de interrupção a cada renovação** — inviável para URLLC. Com ele ligado, zero, em qualquer RTT. É a configuração que a Fase B tem de fixar e o artigo tem de reportar.
+
+**A.3 — resolve a decisão AES-128 × AES-256.** 30 s, 4 fluxos TCP, ordem sorteada:
+
+| Perfil | Vazão | % do bruto | RTT sob carga p50/p95/p99 (ms) | softirq |
+| --- | --- | --- | --- | --- |
+| sem IPsec | 15196,6 Mbps | 100,0% | 0,022 / 0,042 / 0,096 | 31,4% |
+| ESP-AES128GCM | 2649,0 Mbps | 17,4% | 0,039 / 0,066 / 0,108 | 36,4% |
+| ESP-AES256GCM | 2405,3 Mbps | 15,8% | 0,040 / 0,060 / 0,096 | 35,9% |
+| ESP-CHACHA20 | 1908,3 Mbps | 12,6% | 0,043 / 0,077 / 0,111 | 34,8% |
+
+**Decisão: AES-256-GCM para a URLLC.** Custa 9,2% de vazão contra o AES-128 e **nenhuma latência mensurável** (p99 de 0,096 contra 0,108 ms — o AES-256 fica até marginalmente melhor, dentro do ruído). A URLLC é limitada por latência, não por vazão, então o nível de segurança maior sai de graça no que importa para ela. O ChaCha20 fica 28% abaixo do AES-128, consistente com não haver AES-NI para ele — só se justifica em hardware sem aceleração de AES.
+
+**A.4 — o custo de rekey simultâneo é sublinear.** K2, 10 rodadas por ponto, todas com 100% de sucesso:
+
+| Child SAs | Parede p50 | Por filho p50 | Por filho max | ms por filho |
+| --- | --- | --- | --- | --- |
+| 3 | 26,5 ms | 24,5 ms | 25,6 ms | 8,83 |
+| 10 | 50,8 ms | 31,9 ms | 48,0 ms | 5,08 |
+| 30 | 128,8 ms | 94,5 ms | 121,4 ms | 4,29 |
+
+Dez vezes mais Child SAs custam 4,9 vezes de parede. A Fase B rotaciona três fatias e pode enfileirá-las na mesma janela; o resultado diz que a URLLC **não paga fila linear** pelas outras duas, e que a proposta tem folga para escalar além de três fatias.
+
 ### Resultado da A.5: o custo do PQC no handshake não é de CPU
 
 41 KEMs medidos via liboqs 0.16.0, 100 repetições cada, todos bem-sucedidos (p50, em µs). A coluna "strongSwan" diz se o KEM também é mediável fim a fim pela A.1; os demais só existem aqui.
@@ -227,9 +280,9 @@ Estas respostas fixam os números da tabela de perfis e o escopo da Fase A.
   Dois pontos dessa troca afetam a campanha:
 
   - **A pilha precisa de BB84 + Cascade, não BB84 sozinho.** Medido: o BB84 cru do SeQUeNCe devolve chaves que DIFEREM entre as pontas (QBER real do canal — 3 bits divergentes em 128, a 20 km). Como o PPK tem de ser idêntico nos dois lados, sem a reconciliação do Cascade o IKE falharia na autenticação. Com Cascade, as chaves batem (validado com 256 bits, o tamanho do PPK da campanha; QBER ~1,4%).
-  - **Custo de simulação: ~11 s de relógio real por chave**, igual para 128 e 256 bits (domina a reconciliação, não o tamanho). Isso reforça a decisão de buscar o PPK fora do caminho crítico do rekey — o `Tr_ppk` da URLLC em escala de teste é 30 s, então a pré-busca tem de ser assíncrona de verdade, não um `fetch` síncrono antes do reauth.
+  - **Custo de entrega da chave, medido pela API ETSI 014 e não só pelo protocolo:** `enc_keys` (lado master, dispara a simulação) **~15,4 s**; `dec_keys` (lado slave, chave já distribuída) **~1,1 s**. O custo é dominado pela reconciliação, não pelo tamanho — 128 e 256 bits custam praticamente o mesmo. Isso reforça a decisão de buscar o PPK fora do caminho crítico do rekey: o `Tr_ppk` da URLLC em escala de teste é 30 s, então a pré-busca tem de ser assíncrona de verdade, não um `fetch` síncrono antes do reauth. **Somado ao resultado da A.2** — a renovação de PPK exige reauth, e com `make_before_break = yes` a reauth não interrompe tráfego —, o desenho fica fechado: busca assíncrona do PPK, reauth com make-before-break.
 - [x] **TEID não classificado:** decidido em 14/10, descartar e registrar no log.
-- [ ] **AES-128 na URLLC:** manter, ou a Fase A decide entre AES-128 e AES-256 pelo custo medido? melhor seria o aes256 eu acho
+- [x] **AES-128 na URLLC:** decidido pela A.3 (15/10) — **AES-256-GCM**, que era a intuição registrada aqui e a medição confirma. Custa 9,2% de vazão contra o AES-128 (2405 contra 2649 Mbps) e **nenhuma latência mensurável** (p99 sob carga de 0,096 contra 0,108 ms — o AES-256 fica até marginalmente melhor, dentro do ruído). A URLLC é limitada por latência, não por vazão, então o nível de segurança maior sai de graça no que importa para ela. Ver "Resultados da Fase A".
 
 ## Valores fixados (14/10)
 

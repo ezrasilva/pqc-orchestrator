@@ -29,12 +29,30 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import os
+import pwd
 import re
 import secrets
 import sys
 from pathlib import Path
 
-LAB_DIR = Path.home() / "oai-lab-conf"
+
+def _real_home() -> Path:
+    """`Path.home()` sob `sudo` resolve para `/root`, que é o `$HOME` do
+    processo e não o do usuário original.
+
+    Mesmo tropeço já documentado em `evaluation/lab_control.py`, e
+    repetido aqui na primeira execução deste script: ele procurou
+    `/root/oai-lab-conf/...` e não achou. A diferença é que lá o erro
+    ficava silenciado por `stderr=DEVNULL`; aqui aparece.
+    """
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user:
+        return Path(pwd.getpwnam(sudo_user).pw_dir)
+    return Path.home()
+
+
+LAB_DIR = _real_home() / "oai-lab-conf"
 LADOS = ("swanctl-cu", "swanctl-edge")
 
 _ATRIBUTO = re.compile(r"^\s*(local_addrs|remote_addrs|ppk_id)\s*=\s*(\S+)")

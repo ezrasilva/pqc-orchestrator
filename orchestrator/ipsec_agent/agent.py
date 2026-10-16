@@ -50,6 +50,41 @@ def _find_sa(sas: list[dict], conn_name: str) -> Optional[dict]:
     return None
 
 
+def _find_installed_child(payload, child_name: str) -> bool:
+    """Procura, em qualquer profundidade do payload, uma Child SA com este
+    nome já `INSTALLED`.
+
+    **Por que busca recursiva e não um caminho fixo.** Os dois eventos de
+    Child SA têm formas diferentes, confirmado capturando os dois contra
+    o laboratório ao vivo (mesmo método que o repositório usou para
+    descobrir a forma do `ike-updown`):
+
+    * `child-rekey` aninha a SA sob a IKE_SA e ainda dentro de um wrapper
+      `old`/`new` — a que interessa é a `new`;
+    * `child-updown` entrega a entrada sem o wrapper.
+
+    Fixar o caminho de um dos dois quebraria no outro, e qual deles o
+    charon emite depende do modo de rekey. Procurar pela condição
+    (`name` bate e `state == INSTALLED`) em vez de pela posição cobre os
+    dois sem depender desse detalhe.
+
+    **Atenção à tipagem do VICI**: as CHAVES dos dicts vêm como `str` e
+    os VALORES como `bytes`. Procurar por `payload.get(b"name")` nunca
+    casa, e o sintoma é um timeout de 60 s sem erro nenhum — o evento
+    chega, só não é reconhecido. O `_parse_state` deste módulo já
+    registrava essa assimetria (`sa_entry.get("state") == b"ESTABLISHED"`);
+    eu a ignorei na primeira versão desta função e paguei o timeout.
+    """
+    alvo = child_name.encode()
+    if isinstance(payload, dict):
+        if payload.get("name") == alvo and payload.get("state") == b"INSTALLED":
+            return True
+        return any(_find_installed_child(v, child_name) for v in payload.values())
+    if isinstance(payload, list):
+        return any(_find_installed_child(v, child_name) for v in payload)
+    return False
+
+
 class IpsecAgentCore:
     def __init__(self, connections: dict[ConnectionName, ConnectionConfig] = CONNECTIONS):
         self._connections = connections
@@ -72,7 +107,15 @@ class IpsecAgentCore:
         N3_URLLC_CU_EDGE, ver config.py) — ignorado silenciosamente nas
         outras, mesmo que o chamador passe algo (o KMS já só gera ppk
         pra URLLC, ver kms/crypto.py, então isso não deveria acontecer na
-        prática; não é motivo pra falhar a chamada toda)."""
+        prática; não é motivo pra falhar a chamada toda).
+
+        **Caminho legado.** Rotaciona PSK e PPK juntos e sempre paga o
+        reauth, inclusive quando só o material do ESP precisava ser
+        renovado. A arquitetura SAPQ-IPsec separa as duas coisas — ver
+        `rekey_child()` e `reauth_with_ppk()` — porque a Fase A mediu
+        três ordens de grandeza de diferença entre elas. Fica aqui
+        porque a campanha de 12-15/10 foi colhida por este caminho e os
+        cenários antigos ainda o chamam."""
         cfg = self._config(connection)
         owners = [cfg.local_id, cfg.remote_id]
 
@@ -120,6 +163,137 @@ class IpsecAgentCore:
             except Exception as exc:  # noqa: BLE001 — reportar qualquer falha ao chamador, não derrubar o processo
                 logger.exception("falha aplicando material em %s", cfg.conn_name)
                 return ApplyResult(success=False, error_message=str(exc), applied_at=None)
+
+    def rekey_child(self, connection: ConnectionName) -> ApplyResult:
+        """Rotação BARATA: rederiva o material do ESP, sem tocar
+        autenticação, IKE_SA nem PPK.
+
+        **Por que existe separada de `reauth_with_ppk`.** Medido na
+        Fase A (A.2, 400 eventos, dois sentidos, 0 a 40 ms de RTT): o
+        rekey de Child SA não perde **um único pacote**, em nenhuma
+        combinação de perfil, sentido ou RTT — a RFC 7296 obriga
+        make-before-break aqui. A reautenticação custa de ~1,8 ms a
+        163 ms. Três ordens de grandeza separam as duas, então tratá-las
+        como a mesma operação (que é o que `apply_key_material` fazia)
+        joga fora a rotação que sai de graça.
+
+        Não carrega segredo nenhum: o PSK é fixo e serve só para
+        autenticação, e o material do ESP é derivado pelo próprio IKE.
+        """
+        cfg = self._config(connection)
+        with self._lock:
+            try:
+                initiator = ViciConnection(cfg.initiator_socket)
+                # Listener registrado ANTES de disparar, pelo mesmo
+                # motivo do caminho de reauth: o VICI não republica
+                # eventos passados.
+                event_stream = initiator.listen_child_rekey()
+                with timed("child_rekey", connection=connection.value):
+                    initiator.rekey_child(cfg.conn_name)
+                    established_at = self._wait_for_fresh_child_sa(
+                        event_stream, cfg.conn_name)
+                if established_at is None:
+                    return ApplyResult(
+                        success=False,
+                        error_message=(
+                            f"Child SA '{cfg.conn_name}' não reinstalou dentro de "
+                            f"{_APPLY_TIMEOUT_SECONDS}s após o rekey"
+                        ),
+                        applied_at=None,
+                    )
+                return ApplyResult(success=True, error_message="", applied_at=established_at)
+            except Exception as exc:  # noqa: BLE001 — reportar ao chamador, não derrubar o processo
+                logger.exception("falha no rekey de Child SA em %s", cfg.conn_name)
+                return ApplyResult(success=False, error_message=str(exc), applied_at=None)
+
+    def reauth_with_ppk(
+        self, connection: ConnectionName, key_id: str, ppk: bytes
+    ) -> ApplyResult:
+        """Rotação CARA: instala um PPK novo (RFC 8784) e reautentica.
+
+        **Por que o PPK obriga reauth.** O PPK entra na derivação de
+        chaves no IKE_AUTH, não no rekey da Child SA nem no da IKE_SA.
+        Logo não há como trocar o PPK sem reautenticar — e é por isso
+        que esta é a operação caracterizada como caminho caro na A.2.
+
+        **Custo medido e o que ele exige da configuração.** Com
+        `charon.make_before_break = yes` a interrupção é ~1,8 ms, num
+        sentido só (responder → initiator), e **não cresce com o RTT**.
+        Sem ele, cresce: 3,5 ms a 0 ms de RTT, 43,5 ms a 10 ms e
+        **163,7 ms a 40 ms** — exatamente 4 round-trips. Para a URLLC
+        isso é a diferença entre caber e não caber no orçamento, então o
+        `make_before_break` ligado não é afinação, é requisito.
+
+        O PSK NÃO é tocado aqui: ele é fixo e serve apenas para
+        autenticar. Quem rotaciona é o PPK, que é o material vindo da
+        QKD.
+        """
+        cfg = self._config(connection)
+        if not cfg.ppk_id:
+            return ApplyResult(
+                success=False,
+                error_message=(
+                    f"conexão '{connection.value}' não tem ppk_id configurado — "
+                    f"não há como instalar PPK nela (ver ipsec_agent/config.py)"
+                ),
+                applied_at=None,
+            )
+
+        with self._lock:
+            try:
+                initiator = ViciConnection(cfg.initiator_socket)
+                responder = ViciConnection(cfg.responder_socket)
+
+                # Os DOIS lados precisam do mesmo PPK antes do reauth:
+                # com `ppk_required = yes`, um lado sem o PPK novo
+                # rejeita a autenticação.
+                with timed("ppk_install", connection=connection.value, key_id=key_id):
+                    responder.load_shared_ppk(cfg.ppk_id, ppk)
+                    initiator.load_shared_ppk(cfg.ppk_id, ppk)
+
+                event_stream = initiator.listen_rekey()
+                with timed("reauth", connection=connection.value, key_id=key_id):
+                    initiator.rekey(cfg.conn_name, reauth=True)
+                    established_at = self._wait_for_fresh_sa(event_stream, cfg.conn_name)
+                if established_at is None:
+                    return ApplyResult(
+                        success=False,
+                        error_message=(
+                            f"SA '{cfg.conn_name}' não reestabeleceu como ESTABLISHED "
+                            f"dentro de {_APPLY_TIMEOUT_SECONDS}s após o reauth com PPK"
+                        ),
+                        applied_at=None,
+                    )
+
+                self._current_key_id[connection] = key_id
+                return ApplyResult(success=True, error_message="", applied_at=established_at)
+            except Exception as exc:  # noqa: BLE001 — reportar ao chamador, não derrubar o processo
+                logger.exception("falha no reauth com PPK em %s", cfg.conn_name)
+                return ApplyResult(success=False, error_message=str(exc), applied_at=None)
+
+    def _wait_for_fresh_child_sa(self, event_stream, child_name: str) -> Optional[datetime]:
+        """Espera a Child SA reinstalada, pelos eventos do VICI.
+
+        Separado de `_wait_for_fresh_sa` porque aquele entende payload de
+        IKE_SA (`state` na raiz da entrada da conexão) e o de Child SA tem
+        outra forma — usar o de IKE aqui fez o `rekey_child` estourar os
+        60 s de timeout em todas as conexões, embora o rekey em si
+        tivesse sido aceito e executado pelo charon.
+
+        O stream entrega `None` nos ticks de timeout do `listen()` e
+        tuplas `(label, payload)` nos eventos reais; `label` também vem
+        `None` no tick. Ignorar os ticks é o que mantém o laço acordado
+        sem bloquear.
+        """
+        deadline = time.monotonic() + _APPLY_TIMEOUT_SECONDS
+        for evento in event_stream:
+            if time.monotonic() > deadline:
+                return None
+            if not evento or evento[0] is None:
+                continue  # tick de timeout, não evento
+            if _find_installed_child(evento[1], child_name):
+                return datetime.now(timezone.utc)
+        return None
 
     def _wait_for_fresh_sa(self, event_stream, conn_name: str) -> Optional[datetime]:
         """**Reescrito — era polling de `list_sas` a cada 500ms, achado

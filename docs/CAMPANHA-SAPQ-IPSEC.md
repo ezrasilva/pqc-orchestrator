@@ -292,12 +292,12 @@ Os itens abaixo são do repositório ezrasilva/pqc-orchestrator (commit a3ba1d6)
 - [ ] `evaluation/scenarios/scenario1_static_pqc.py`: trocar `swanctl --rekey --ike` por rekey da Child SA, no mesmo Tr\_child dos demais cenários.
 - [ ] Runner: sortear e intercalar a ordem dos cenários entre as repetições.
 - [ ] `orchestrator/kms/crypto.py`: remover o ML-KEM local; o KMS passa a entregar a chave QKD (ETSI GS QKD 014 do QuDitto, rodando local) e a busca é feita antes do reauth, fora do caminho crítico do rekey; a chave entra no charon como PPK.
-- [ ] `orchestrator/ipsec_agent/agent.py`: separar `rekey_child()` de `reauth_with_ppk()`; o PSK fica fixo, só para autenticação.
+- [x] `orchestrator/ipsec_agent/agent.py`: separar `rekey_child()` de `reauth_with_ppk()`; o PSK fica fixo, só para autenticação. *(Feito em 16/10. `rekey_child()` não carrega segredo nenhum e mediu 2,4–3,2 ms nas três fatias; `reauth_with_ppk()` instala o PPK nos dois lados e reautentica, e recusa conexão sem `ppk_id`. Exigiu `rekey_child`/`listen_child_rekey` novos no `vici_client.py` e um `_wait_for_fresh_child_sa` próprio, porque o payload de evento de Child SA tem forma diferente do de IKE_SA. `apply_key_material` fica como caminho legado dos cenários antigos.)*
 - [ ] `lab/ipsec/swanctl-*/conf.d/connections.conf`: `ppk_id` e `ppk_required = yes` nas três fatias; propostas parametrizadas por perfil (K0–K5); conferir `make_before_break` no strongswan.conf.
 - [ ] Instrumentação: `timed()` em volta da busca do PPK e de cada `load_shared`, coletor de `ip xfrm monitor`, log `ike` do charon com timestamp.
 - [ ] Coletores novos: ping e iperf3 direto no N3 (namespace da CU → namespace do UPF), CPU de OCUDU, UPF e softirq.
-- [x] Script da Fase A: roda cada perfil no N3 sem o testbed de rádio. *(Feito em 14/10: `evaluation/phase_a/` — catálogo `profiles.py` e harness `bench_n3.py` com a medição A.1; A.2–A.6 pendentes.)*
-- [ ] Fase A: eixo de RTT com `netem` (A.6), conforme a seção "Por que o RTT do enlace precisa ser um eixo".
+- [x] Script da Fase A: roda cada perfil no N3 sem o testbed de rádio. *(Completo em 15/10: `evaluation/phase_a/` com as seis medições — `profiles.py`, `bench_n3.py` (A.1/A.2/A.3/A.4), `rekey_traffic.py`, `dataplane.py`, `scale.py`, `kem_bench.py` (A.5) e `netem.py` (A.6).)*
+- [x] Fase A: eixo de RTT com `netem` (A.6). *(Feito em 15/10: `phase_a/netem.py`; validado em 0/5/20 ms por sentido → 0,03 / 10,09 / 40,08 ms de RTT medido.)*
 
 ## Decisões em aberto
 

@@ -73,6 +73,45 @@ class ViciConnection:
         session = self._session()
         session.rekey({"ike": conn_name, "reauth": reauth})
 
+    def rekey_child(self, child_name: str) -> None:
+        """Rekey da Child SA: rederiva só o material do ESP, sem tocar a
+        autenticação nem a IKE_SA.
+
+        **Por que isto é um método separado de `rekey()`.** Medido na
+        Fase A (A.2, 400 eventos nos dois sentidos, 0 a 40 ms de RTT):
+        o rekey de Child SA **não perde um único pacote**, em nenhum
+        sentido, perfil ou RTT — a RFC 7296 obriga make-before-break
+        aqui. Já a reautenticação da IKE_SA, que é o que `rekey()` faz,
+        custa de ~1,8 ms (com `charon.make_before_break = yes`) a 163 ms
+        (sem ele, a 40 ms de RTT).
+
+        Ou seja, as duas operações diferem em três ordens de grandeza de
+        custo, e por isso o orquestrador tem de poder escolher. A
+        renovação de material do ESP usa este caminho; só a renovação de
+        PPK precisa do caro, porque o PPK entra na derivação no
+        IKE_AUTH e portanto exige reautenticação.
+        """
+        session = self._session()
+        session.rekey({"child": child_name})
+
+    def listen_child_rekey(self, tick_timeout: float = 0.05):
+        """Como `listen_rekey()`, mas para eventos de Child SA.
+
+        Mesmo cuidado de corrida: o generator volta já registrado no
+        charon, com o primeiro tick consumido, porque o VICI não
+        republica eventos passados — se o evento acontecer entre
+        "disparei" e "comecei a escutar", ele se perde para sempre.
+
+        Escuta `child-rekey` e `child-updown` pelo mesmo motivo que o
+        listener de IKE escuta dois tipos: qual dos dois o charon emite
+        depende do modo de rekey, e cobrir os dois evita depender desse
+        detalhe.
+        """
+        session = self._session()
+        gen = session.listen(["child-rekey", "child-updown"], timeout=tick_timeout)
+        next(gen)  # consome o tick de registro, ver docstring
+        return gen
+
     def terminate(self, conn_name: str) -> None:
         session = self._session()
         session.terminate({"ike": conn_name})

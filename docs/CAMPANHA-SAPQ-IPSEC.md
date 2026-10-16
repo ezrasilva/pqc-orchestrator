@@ -104,17 +104,47 @@ A última coluna é exatamente o número de trocas de cada perfil. Duas consequ�
 * **K4 custa o mesmo que K0 em todos os RTTs**, com quatro vezes os bytes. Nas faixas em jogo (até ~2 kB), bytes no fio não custam tempo mensurável; só custam quando forçam uma troca a mais.
 * **A A.6 se pagou.** A 0,03 ms o híbrido parece barato (K3 em 31,2 contra K2 em 29,8: +1,4 ms, 5%). A 40 ms de RTT a penalidade é de **+42,6 ms (39%)**. Medir só na bancada levaria o artigo à conclusão oposta, justamente para a URLLC — a fatia que o catálogo quer atender com K5.
 
-**A.2 + A.6 — o make-before-break é a diferença entre 0 e 163 ms.** Interrupção p50 medida pelo fluxo UDP:
+**A.2 + A.6 — a interrupção tem duas componentes, e o make-before-break mata só uma (a que importa).** Interrupção p50 medida pelos fluxos UDP, **por sentido** — ver "Por que a A.2 precisa medir os dois sentidos" abaixo:
 
-| Evento | `make_before_break` | RTT 0,06 ms | RTT 10,1 ms | RTT 40,1 ms |
-| --- | --- | --- | --- | --- |
-| rekey de Child SA | indiferente | **0** | **0** | **0** |
-| reauth | `yes` | **0** | **0** | **0** |
-| reauth | `no` | 3,35 ms | 43,8 ms | **163,6 ms** |
+| Evento | `make_before_break` | Sentido | RTT 0,04 ms | RTT 10,1 ms | RTT 40,1 ms |
+| --- | --- | --- | --- | --- | --- |
+| rekey de Child SA | indiferente | ida e volta | **0** | **0** | **0** |
+| reauth | `yes` | ida (initiator→responder) | **0** | **0** | **0** |
+| reauth | `yes` | volta (responder→initiator) | 1,7 ms | 1,8–2,1 ms | 1,8–2,1 ms |
+| reauth | `no` | ida | 3,2–3,8 ms | **43,5 ms** | **163,7 ms** |
+| reauth | `no` | volta | 3,0–3,8 ms | 3,2–3,8 ms | 3,6 ms |
 
-A interrupção do break-before-make é **exatamente 4 round-trips**: (163,60 − 3,35)/40,04 = 4,00 e (43,83 − 3,35)/10,06 = 4,02. Ela é a mesma em K0 (x25519) e K4 (ML-KEM-1024), ou seja **não é do KEM** — é o custo de derrubar e reinstalar a SA, e o que escala com o RTT é o número de trocas que isso embute.
+(6 perfis × 20 repetições a RTT 0; K2 e K5 × 20 nos outros pontos. Todas as linhas de base: 0 perda nos dois sentidos.)
 
-Consequência direta para a proposta: a renovação de PPK exige reauth, e num backhaul de 20 ms por sentido deixar `make_before_break = no` custaria **163 ms de interrupção a cada renovação** — inviável para URLLC. Com ele ligado, zero, em qualquer RTT. É a configuração que a Fase B tem de fixar e o artigo tem de reportar.
+A estrutura é clara:
+
+* **A componente de ida escala com o RTT e vale exatamente 4 round-trips**: (163,71 − 3,57)/40,09 = 4,00 e (43,49 − 3,57)/10,11 = 3,95. É o custo de o initiator ficar sem SA de saída enquanto espera o delete e o handshake novo inteiro.
+* **A componente de volta é de 2 a 4 ms e NÃO depende do RTT**, em nenhuma configuração. É a corrida de troca de SA no responder: a reauth é iniciada pela CU, que troca a própria SA de saída atomicamente, mas a borda troca a dela ao processar a troca e há um instante em que a SA de saída que ela usa não casa com a de entrada instalada na CU. Efeito local, não de protocolo.
+* **O make-before-break elimina a componente que escala** (ida: zero em todos os RTTs) e reduz a local pela metade (1,7–2,1 contra 3,0–3,8 ms). A 40 ms de RTT isso leva o pior caso de **163,7 ms para ~1,8 ms, ou 90×** — mas **não a zero**.
+
+A interrupção é a mesma em K0 (x25519) e K4 (ML-KEM-1024), ou seja **não é do KEM**: é o custo de reinstalar a SA, e o que escala com o RTT é o número de trocas que isso embute.
+
+Consequência direta para a proposta: a renovação de PPK exige reauth, e num backhaul de 20 ms por sentido deixar `make_before_break = no` custaria **163 ms de interrupção a cada renovação** — inviável para URLLC. Com ele ligado sobram ~1,8 ms num sentido só, o que cabe no orçamento da URLLC. É a configuração que a Fase B tem de fixar, e o artigo deve reportar o resíduo de 1,8 ms em vez de afirmar interrupção nula.
+
+### Por que a A.2 precisa medir os dois sentidos
+
+A primeira versão da A.2 media só CU → borda e concluiu que o make-before-break dava **interrupção zero**. Está errado, e o erro era do instrumento: com make-before-break a interrupção existe **apenas no sentido responder → initiator**, que era justamente o que não estava sendo medido.
+
+O que denunciou foi uma divergência entre instrumentos. O ping a 1 kHz reportava 1 pacote perdido em 101 de 120 reauths, enquanto o fluxo UDP, a nove vezes a taxa, reportava zero — se houvesse lacuna de tráfego o fluxo mais rápido perderia mais, não menos. Os contadores ICMP do kernel nos dois netns resolveram (8 reauths, MBB ligado):
+
+| Contador | Valor |
+| --- | --- |
+| CU `OutEchos` (requests enviados) | 16165 |
+| Borda `InEchos` (requests recebidos) | **16165** → ida sem perda |
+| Borda `OutEchoReps` (replies enviados) | 16165 |
+| CU `InEchoReps` (replies recebidos) | **16158** → **7 perdidos na volta** |
+
+Com fluxo UDP nos dois sentidos, 197275 pacotes cada: 0 na ida, 64 na volta (8 por reauth). Com o sentido certo medido, os dois instrumentos **sempre concordaram**: 1 pacote a 1 kHz e 8 a 9 kHz são ambos ~0,9 ms.
+
+Duas lições de método que ficam registradas porque custaram tempo:
+
+1. **No iperf3, a perda só existe no relatório do RECEPTOR.** No UDP ela é calculada por quem recebe; o emissor só sabe o que enviou. Inverter o sentido com `-R` mantém o servidor como emissor e move a perda para o relatório do cliente — ler o campo do servidor nesse modo devolve ausência de informação, que é fácil confundir com ausência de perda. A sonda passou a escolher o sentido trocando quem é servidor e quem é cliente, com o servidor sempre no papel de receptor.
+2. **Divergência entre dois instrumentos é informação, não ruído.** A tentação era declarar o ping pouco confiável (e eu cheguei a atribuir a diferença a travamento do processo de sonda, o que era falso). O ping estava certo; o erro era o sentido medido.
 
 **A.3 — resolve a decisão AES-128 × AES-256.** 30 s, 4 fluxos TCP, ordem sorteada:
 

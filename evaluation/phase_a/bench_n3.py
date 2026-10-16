@@ -160,7 +160,32 @@ def backup_lab_config() -> dict[tuple[str, str], str]:
     `~/oai-lab-conf`, o `secrets.conf` não. Perder esse arquivo custou
     duas regenerações de PSK no meio da campanha anterior."""
     base = lab_control.LIVE_LAB_IPSEC_DIR
-    return {key: (base / key[0] / "conf.d" / key[1]).read_text() for key in _CONF_FILES}
+    backup = {key: (base / key[0] / "conf.d" / key[1]).read_text() for key in _CONF_FILES}
+
+    # GUARDA: se o que está vivo já é a config DESTA bancada, então uma
+    # execução anterior da Fase A rodou com `--no-restore` e a config
+    # por-fatia da Fase B não está mais aqui. "Restaurar" este backup no
+    # fim devolveria a config da Fase A e o `load_and_initiate_n3`
+    # falharia com "CHILD_SA config 'n3-urllc-cu-edge' not found" —
+    # exatamente o que aconteceu ao encadear duas execuções, a primeira
+    # com `--no-restore`.
+    #
+    # Falhar aqui, ANTES de medir, é melhor que descobrir no fim: a
+    # recuperação é `git -C ~/oai-lab-conf checkout swanctl-cu
+    # swanctl-edge` mais `lab/ipsec/regen-secrets.py`, e não custa nada
+    # fazer antes.
+    if any(f"{CONN_NAME} {{" in texto for texto in backup.values()):
+        raise RuntimeError(
+            f"a config viva em {base} já é a da Fase A (conexão {CONN_NAME!r}), "
+            f"não a por-fatia da Fase B — provavelmente de uma execução anterior "
+            f"com --no-restore. Restaurar este backup no fim não devolveria a "
+            f"Fase B. Recupere antes com:\n"
+            f"  git -C {base} checkout swanctl-cu swanctl-edge\n"
+            f"  sudo lab/ipsec/regen-secrets.py\n"
+            f"Ou rode esta execução com --no-restore, se o encadeamento for "
+            f"intencional e a restauração vier depois."
+        )
+    return backup
 
 
 def restore_lab_config(backup: dict[tuple[str, str], str]) -> None:

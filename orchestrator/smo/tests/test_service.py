@@ -70,18 +70,26 @@ def test_process_next_task_success_activates_key_and_applies(smo, scheduler_core
     assert ppk is not None  # URLLC sempre carrega ppk
 
 
-def test_process_next_task_non_urllc_has_no_ppk(smo, scheduler_core, fake_ipsec_agent):
+def test_todas_as_fatias_recebem_ppk(smo, scheduler_core, fake_ipsec_agent):
+    """Invertido em 16/10. A versão anterior afirmava que fatia
+    não-URLLC NÃO recebia PPK, o que era verdade quando só a urllc tinha
+    `ppk_id`. A seção de arquitetura de chaves da campanha é explícita:
+    dois níveis de rotação POR FATIA, com Tr_ppk próprio cada, e o
+    modelo de consumo soma sobre as fatias. As três passaram a ter
+    `ppk_id`/`ppk_required = yes` (ver
+    lab/ipsec/swanctl-*/conf.d/connections.conf), e as três sobem
+    negociando `/PPK` — confirmado ao vivo."""
     _enqueue(scheduler_core, slice=SchedSliceType.EMBB)
     smo.process_next_task()
-    _, _, _, ppk = fake_ipsec_agent.applied_calls[0]
-    assert ppk is None
+    _, _, ppk = fake_ipsec_agent.reauth_calls[0]
+    assert ppk is not None and len(ppk) == 32
 
 
-def test_process_next_task_failure_marks_failed_and_quarantines_old(smo, scheduler_core, kms_core):
+def test_process_next_task_failure_marks_failed_and_quarantines_old(smo, scheduler_core, kms_core, ppk_provider):
     failing_agent = FakeIpsecAgent(fail_connections=frozenset({ConnectionName.N3_URLLC_CU_EDGE}))
     from smo.service import SmoCore
 
-    smo_with_failure = SmoCore(kms_core, scheduler_core, failing_agent)
+    smo_with_failure = SmoCore(kms_core, scheduler_core, failing_agent, ppk_provider)
 
     # primeira rotação: sucesso simulado via agente que não falha pra
     # estabelecer uma chave ACTIVE antes de testar a falha

@@ -35,6 +35,8 @@ from evaluation.collectors.xfrm_state import XfrmStatePoller
 from evaluation.instrumentation import emit
 from evaluation.rotation_driver import RotationDriver
 from ipsec_agent.agent import IpsecAgentCore
+from kms.models import SliceType
+from kms.qkd import PpkProvider, Qkd014Client
 from kms.service import KeyManagementCore
 from kms.store import KeyStore
 from scheduler.service import SchedulerCore
@@ -147,12 +149,31 @@ def _run_traffic_plan(plan: list[dict], duration_seconds: int) -> None:
         t.join(timeout=duration_seconds + 30)
 
 
-def _build_smo() -> tuple[SmoCore, SchedulerCore, KeyStore]:
+# QKDN do QuDitto (ver lab/qkd/). O nó A é onde roda o controller e o
+# RabbitMQ; o B é a outra ponta do enlace simulado de 20 km.
+QKDN_MASTER_URL = "http://172.20.0.11:8000"
+QKDN_SLAVE_SAE_ID = "B"
+# Profundidade do poço por fatia. Três é o suficiente para absorver uma
+# rajada de rotações sem que o reauth espere: medido, cada chave custa
+# ~15,4 s de simulação e a QKDN SERIALIZA a geração (três threads em
+# paralelo renderam ~1 chave por 15 s, não três), então encher mais
+# fundo não acelera — só aumenta o tempo de aquecimento.
+PPK_POOL_DEPTH = 3
+
+
+def _build_smo() -> tuple[SmoCore, SchedulerCore, KeyStore, PpkProvider]:
     store = KeyStore(RESULTS_DIR / ".kms-experiment.sqlite3")
     kms = KeyManagementCore(store)
     scheduler = SchedulerCore()
-    smo = SmoCore(kms, scheduler, IpsecAgentCore())
-    return smo, scheduler, store
+    # O poço começa a gastar QKD ao `start()`, então ele sobe aqui e é
+    # devolvido para quem chama poder pará-lo no fim do experimento.
+    provider = PpkProvider(
+        Qkd014Client(QKDN_MASTER_URL), QKDN_SLAVE_SAE_ID,
+        tuple(SliceType), depth=PPK_POOL_DEPTH,
+    )
+    provider.start()
+    smo = SmoCore(kms, scheduler, IpsecAgentCore(), provider)
+    return smo, scheduler, store, provider
 
 
 def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_seconds: int) -> str:
@@ -170,7 +191,7 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
     log_path = RESULTS_DIR / f"{run_id}.jsonl"
     instrumentation.configure(log_path, run_id)
 
-    smo = scheduler = store = None
+    smo = scheduler = store = ppk_provider = None
     rotation_driver = None
     xfrm_poller = classification_poller = resource_poller = None
 
@@ -180,7 +201,7 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
 
         policy = getattr(module, "scheduling_policy", None)
         if policy is not None:
-            smo, scheduler, store = _build_smo()
+            smo, scheduler, store, ppk_provider = _build_smo()
             scheduler.set_policy(policy)
             rotation_driver = RotationDriver(smo, scheduler, check_interval_seconds=10.0)
 
@@ -249,6 +270,10 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
             resource_poller.stop()
         if rotation_driver is not None:
             rotation_driver.stop()
+        if ppk_provider is not None:
+            # Antes do store: as threads de reposição não devem continuar
+            # gastando QKD depois do fim da iteração.
+            ppk_provider.stop()
         if store is not None:
             store.close()
         print(f"[{run_id}] teardown...")

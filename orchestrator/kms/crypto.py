@@ -1,121 +1,90 @@
-"""Geração do material híbrido PQC(+QKD simulado) — ver
-../docs/ARQUITETURA-ORQUESTRADOR.md seção 3.
+"""Material de chave que o KMS entrega ao IPsec Agent.
 
-Por fatia:
-- URLLC: ML-KEM-768 pro PSK do IKE **e** um componente "quântico"
-  simulado **separado**, pra usar como PPK (RFC 8784) de verdade via o
-  mecanismo nativo do strongSwan — não misturado no mesmo HKDF do PSK
-  (ver abaixo o porquê dessa mudança).
-- eMBB / mIoT: só ML-KEM-512 pro PSK, sem PPK.
+**O que mudou e por quê.** A primeira versão gerava, a cada rotação, um
+PSK derivado por HKDF de um segredo ML-KEM executado localmente, mais um
+"componente quântico" que era `secrets.token_bytes()` rotulado como
+simulado. Os dois saíram:
 
-Sobre o ML-KEM aqui: numa troca de chaves real, encapsulamento e
-decapsulamento acontecem em partes diferentes (cada lado com seu próprio
-par de chaves). Aqui o KMS gera os dois lados sozinho porque o PSK final é
-*distribuído* fora de banda pro IPsec Agent aplicar nos dois pontos da
-conexão (ver "Mecanismo real de rotação" na arquitetura) — o papel do
-ML-KEM neste desenho não é acordo de chave entre duas partes, é fonte de
-segredo pós-quântico de alta entropia que entra no HKDF. Fazemos o ciclo
-completo keygen -> encapsulate -> decapsulate (e conferimos que os dois
-lados batem) só pra exercitar o algoritmo de verdade, não simular com
-`os.urandom` puro.
+* **O ML-KEM local saiu** porque era redundante e enganoso. O IKE já
+  negocia ML-KEM a cada rekey e a cada reauth — medido ao vivo: o rekey
+  de Child SA de cada fatia faz uma troca ML-KEM nova (768/768/1024, ver
+  `lab/ipsec/.../connections.conf`). Um segundo ML-KEM dentro do KMS não
+  acrescentava segurança, e pior: ele rodava os dois lados do KEM no
+  mesmo processo, o que não é acordo de chave nenhum — era uma fonte de
+  entropia com nome de KEM.
+* **O PSK saiu da rotação.** Na arquitetura adotada o PSK é FIXO e serve
+  só para autenticação; quem rotaciona é o PPK (RFC 8784), que entra na
+  derivação de chaves no IKE_AUTH. Rotacionar o PSK obrigava um reauth a
+  cada rotação, inclusive quando só o material do ESP precisava ser
+  renovado — e a Fase A mediu três ordens de grandeza entre as duas
+  operações (rekey de Child SA sem perda de pacote, contra reauth de
+  ~1,8 ms a 163 ms de interrupção).
 
-**Por que o componente quântico virou um campo separado (`ppk`), em vez
-de entrar no mesmo HKDF do `psk`**: a primeira versão deste módulo
-misturava os dois (`ikm = ml_kem_secret + quantum_component`) antes do
-HKDF, produzindo um único PSK "híbrido". Isso funcionava em teoria, mas
-divergia do que a Fase 4 do protótipo SBRC validou contra o laboratório
-real (`docs/ARQUITETURA-PROTOTIPO-COMPLETA.md` seção 5.4): lá, o PPK é
-aplicado via o mecanismo nativo do strongSwan (`ppk_id`/`ppk_required`,
-RFC 8784), que exige um segredo PPK *distinto* do PSK do IKE — o
-`swanctl --list-sas` só confirma `/PPK` ativo numa SA quando os dois
-estão separados. Manter os dois campos agora é o que deixa o KMS
-compatível com o IPsec Agent de verdade (ver `ipsec_agent/config.py`).
+O que o KMS entrega agora é **a chave de QKD, vinda da QKDN pela API
+ETSI GS QKD 014**, para ser carregada como PPK. Ver `kms/qkd.py` para o
+cliente e para por que a busca é pré-fetch e não sob demanda.
 
-O componente "quântico simulado" é só entropia aleatória rotulada como tal
-— não existe hardware QKD neste laboratório. Isso está documentado como
-simulação desde a primeira versão da arquitetura, não é um detalhe
-escondido.
+O PSK continua existindo na configuração do laboratório (gerado por
+`lab/ipsec/regen-secrets.py`), só não passa mais por aqui.
 """
 
 from __future__ import annotations
 
-import secrets
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
-import oqs
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-
 from kms.models import SliceType
-from evaluation.instrumentation import timed
+from kms.qkd import PpkProvider, QkdKey
+from evaluation.instrumentation import emit, timed
 
+logger = logging.getLogger(__name__)
+
+# Mantido porque o `secrets.conf` do laboratório usa 32 bytes e o
+# `regen-secrets.py` gera nesse tamanho; serve de referência única.
 PSK_LENGTH_BYTES = 32
-_QUANTUM_COMPONENT_LENGTH_BYTES = 32
-_HKDF_INFO = b"pqc-orchestrator-hybrid-psk-v1"
-
-_KEM_BY_SLICE: dict[SliceType, str] = {
-    SliceType.URLLC: "ML-KEM-768",
-    SliceType.EMBB: "ML-KEM-512",
-    SliceType.MIOT: "ML-KEM-512",
-}
 
 
-@dataclass
-class HybridMaterial:
-    psk: bytes
-    kem_algorithm: str
-    has_quantum_component: bool
-    ppk: Optional[bytes] = None  # só URLLC — ver docstring do módulo
+@dataclass(frozen=True)
+class PpkMaterial:
+    """Material de uma rotação de PPK.
+
+    O `key_id` é o que viaja para a outra ponta: é com ele que o KMS
+    remoto chama `dec_keys` e obtém a MESMA chave, sem que a chave em si
+    seja transmitida. Ver `kms/qkd.QkdKey`.
+    """
+    key_id: str
+    ppk: bytes
+    slice: SliceType
+    source: str
 
 
-def _ml_kem_shared_secret(kem_algorithm: str) -> bytes:
-    """Executa um ciclo completo keygen/encapsulate/decapsulate do KEM e
-    retorna o segredo compartilhado, depois de conferir que os dois lados
-    (encapsulador e decapsulador) derivaram o mesmo valor."""
-    with oqs.KeyEncapsulation(kem_algorithm) as kem_initiator:
-        public_key = kem_initiator.generate_keypair()
-        ciphertext, shared_secret_encap = kem_initiator.encap_secret(public_key)
-        shared_secret_decap = kem_initiator.decap_secret(ciphertext)
+def fetch_ppk(slice: SliceType, provider: PpkProvider,
+              timeout_seconds: float = 0.0) -> Optional[PpkMaterial]:
+    """Tira do poço a próxima chave de QKD da fatia.
 
-    if shared_secret_encap != shared_secret_decap:
-        # Não deveria acontecer com uma implementação correta do KEM — se
-        # acontecer, é sinal de bug sério na lib nativa, não algo pra
-        # engolir silenciosamente.
-        raise RuntimeError(
-            f"segredo compartilhado do {kem_algorithm} não bateu entre "
-            "encapsulamento e decapsulamento"
-        )
-    return shared_secret_encap
+    Devolve `None` quando o poço está vazio — e isso **não é erro**. Poço
+    vazio significa escassez de QKD, que é um dos fenômenos que a
+    campanha existe para medir (o modelo é `Σ k / Tr_ppk,i ≤ R_qkd`, e
+    violá-lo tem de produzir um efeito observável, não uma exceção). O
+    evento fica registrado para a análise, e quem chama decide entre
+    adiar a rotação ou seguir com o PPK anterior.
 
+    **O `timeout` é 0 por padrão, de propósito.** Esperar aqui colocaria
+    a latência da QKD de volta no caminho crítico do reauth, que é
+    exatamente o que o poço existe para evitar: a busca no master custa
+    ~15,4 s medidos, contra ~1,8 ms de interrupção do reauth.
+    """
+    with timed("ppk_fetch", slice=slice.value):
+        chave: Optional[QkdKey] = provider.get(slice, timeout=timeout_seconds)
 
-def generate_hybrid_material(slice: SliceType) -> HybridMaterial:
-    """Gera o material híbrido pra uma fatia. Determinístico só no
-    *formato* (algoritmo, presença de componente quântico) — o valor em si
-    é sempre novo, nunca reaproveita segredo de uma chamada anterior.
+    if chave is None:
+        emit("ppk_pool_empty", slice=slice.value,
+             pool_depth=provider.depth(slice))
+        logger.warning("poço de PPK vazio para %s — rotação adiada", slice.value)
+        return None
 
-    O PSK sempre passa pelo HKDF (domain separation via `_HKDF_INFO`,
-    mesmo quando a entrada é só o segredo do ML-KEM). O `ppk`, quando
-    existe, é usado bruto — é assim que o PPK da Fase 4 já foi validado
-    contra o laboratório real (ver `swanctl` secrets, que carregam o
-    valor de `openssl rand -hex 32` direto, sem KDF por cima)."""
-    with timed("keygen_pqc", slice=slice.value):
-        kem_algorithm = _KEM_BY_SLICE[slice]
-        ml_kem_secret = _ml_kem_shared_secret(kem_algorithm)
-
-        has_quantum_component = slice is SliceType.URLLC
-        ppk = secrets.token_bytes(_QUANTUM_COMPONENT_LENGTH_BYTES) if has_quantum_component else None
-
-        psk = HKDF(
-            algorithm=hashes.SHA384(),
-            length=PSK_LENGTH_BYTES,
-            salt=None,
-            info=_HKDF_INFO,
-        ).derive(ml_kem_secret)
-
-    return HybridMaterial(
-        psk=psk,
-        kem_algorithm=kem_algorithm,
-        has_quantum_component=has_quantum_component,
-        ppk=ppk,
-    )
+    emit("ppk_fetched", slice=slice.value, key_id=chave.key_id,
+         bits=len(chave.key) * 8, pool_depth=provider.depth(slice))
+    return PpkMaterial(key_id=chave.key_id, ppk=chave.key,
+                       slice=slice, source=chave.source)

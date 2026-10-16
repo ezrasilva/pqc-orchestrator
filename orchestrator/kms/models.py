@@ -80,7 +80,7 @@ class KeyMaterial:
     slice: SliceType
     interface: InterfaceType
     psk: bytes
-    kem_algorithm: str
+    key_source: str
     has_quantum_component: bool
     generated_at: datetime
     ppk: Optional[bytes] = None
@@ -95,7 +95,7 @@ class KeyStateInfo:
     key_id: str
     slice: SliceType
     interface: InterfaceType
-    kem_algorithm: str
+    key_source: str
     has_quantum_component: bool
     state: KeyState
     created_at: datetime

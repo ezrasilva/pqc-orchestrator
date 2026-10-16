@@ -14,7 +14,8 @@ import threading
 import uuid
 from typing import Optional
 
-from kms.crypto import generate_hybrid_material
+from kms.crypto import fetch_ppk
+from kms.qkd import PpkProvider
 from kms.exceptions import InvalidTransitionError
 from kms.models import (
     VALID_TRANSITIONS,
@@ -44,35 +45,56 @@ class KeyManagementCore:
     def close(self) -> None:
         self._store.close()
 
-    def generate(
-        self, slice: SliceType, interface: InterfaceType, reason: str = "scheduled"
-    ) -> KeyMaterial:
-        """Gera material novo e registra em PENDING. Não mexe em nenhuma
-        chave existente pra essa fatia/interface — quem decide o que fazer
-        com a chave ACTIVE anterior (marcar RENEWING, revogar depois que
-        esta for ativada) é o chamador (SMO), via os métodos de transição
-        abaixo."""
-        material = generate_hybrid_material(slice)
-        key_id = _new_key_id()
+    def provision_ppk(
+        self, slice: SliceType, interface: InterfaceType, provider: PpkProvider,
+        reason: str = "scheduled"
+    ) -> Optional[KeyMaterial]:
+        """Tira do poço a próxima chave de QKD da fatia e registra em
+        PENDING. Não mexe em nenhuma chave existente — quem decide o que
+        fazer com a ACTIVE anterior é o chamador (SMO), pelos métodos de
+        transição abaixo.
+
+        **Substitui o antigo `generate()`**, que gerava PSK derivado de um
+        ML-KEM executado dentro do KMS. Ver `kms/crypto.py` para por que
+        o ML-KEM local saiu (o IKE já negocia ML-KEM a cada rekey) e por
+        que o PSK saiu da rotação (é fixo, só autentica).
+
+        **O `key_id` vem da QKDN, não é cunhado aqui.** Isso é essencial e
+        não é detalhe de implementação: na ETSI GS QKD 014 é pelo
+        `key_ID` que a outra ponta chama `dec_keys` e obtém a MESMA
+        chave, sem que a chave trafegue. Cunhar um id local quebraria a
+        distribuição — as duas pontas carregariam PPKs diferentes e a
+        autenticação falharia com `ppk_required = yes`.
+
+        Devolve `None` quando o poço está vazio. Não é erro: é escassez
+        de QKD, um dos fenômenos que a campanha mede (`Σ k / Tr_ppk,i ≤
+        R_qkd`). O evento já fica registrado por `fetch_ppk`.
+        """
+        material = fetch_ppk(slice, provider)
+        if material is None:
+            return None
+
         with self._lock:
             self._store.insert(
-                key_id=key_id,
+                key_id=material.key_id,
                 slice=slice,
                 interface=interface,
-                kem_algorithm=material.kem_algorithm,
-                has_quantum_component=material.has_quantum_component,
-                psk=material.psk,
+                key_source=f"QKD/BB84+Cascade via ETSI 014 ({material.source})",
+                has_quantum_component=True,
+                # O PSK é fixo e vive no secrets.conf do laboratório;
+                # o KMS não o gera nem o rotaciona mais.
+                psk=b"",
                 ppk=material.ppk,
                 state=KeyState.PENDING,
                 reason=reason,
             )
         return KeyMaterial(
-            key_id=key_id,
+            key_id=material.key_id,
             slice=slice,
             interface=interface,
-            psk=material.psk,
-            kem_algorithm=material.kem_algorithm,
-            has_quantum_component=material.has_quantum_component,
+            psk=b"",
+            key_source=f"QKD/BB84+Cascade via ETSI 014 ({material.source})",
+            has_quantum_component=True,
             generated_at=utcnow(),
             ppk=material.ppk,
         )

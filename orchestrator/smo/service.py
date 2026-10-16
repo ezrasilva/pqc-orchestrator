@@ -28,6 +28,7 @@ from typing import Optional
 from ipsec_agent.agent import IpsecAgentCore
 from ipsec_agent.models import ConnectionName
 from kms.models import InterfaceType, SliceType
+from kms.qkd import PpkProvider
 from kms.service import KeyManagementCore
 from scheduler.models import EnqueueTaskRequest, SchedulingPolicy
 from scheduler.models import InterfaceType as SchedulerInterfaceType
@@ -79,10 +80,16 @@ class SmoCore:
         kms: KeyManagementCore,
         scheduler: SchedulerCore,
         ipsec_agent: IpsecAgentCore,
+        ppk_provider: PpkProvider,
     ):
         self._kms = kms
         self._scheduler = scheduler
         self._ipsec_agent = ipsec_agent
+        # Injetado em vez de construído aqui: o poço precisa ser
+        # compartilhado com quem mais consumir QKD e ter o ciclo de vida
+        # controlado por quem sobe o processo (as threads de reposição
+        # começam a gastar QKD assim que `start()` é chamado).
+        self._ppk_provider = ppk_provider
         self._audit_lock = threading.Lock()
         self._audit_log: list[AuditEvent] = []
 
@@ -131,10 +138,33 @@ class SmoCore:
         if old_active is not None:
             self._kms.mark_renewing(old_active.key_id, f"substituída pela task {task.task_id}")
 
-        material = self._kms.generate(slice, interface, reason=task.reason or f"task {task.task_id}")
+        material = self._kms.provision_ppk(
+            slice, interface, self._ppk_provider,
+            reason=task.reason or f"task {task.task_id}",
+        )
+        if material is None:
+            # Poço de PPK vazio: escassez de QKD, não falha de software.
+            # A rotação é ADIADA, não perdida — a task volta a ser
+            # elegível no próximo tick, e o evento `ppk_pool_empty` (ver
+            # kms/crypto.py) fica no registro para a análise relacionar
+            # escassez com SLA perdido. Degradar para "rotaciona sem PPK"
+            # seria pior: com `ppk_required = yes` nas três fatias, isso
+            # não é sequer negociável no charon.
+            self._audit(
+                "ppk_unavailable", slice=slice, interface=interface, key_id="",
+                actor=actor, detail="poço de PPK vazio — rotação adiada", success=False,
+            )
+            return ProcessTaskResult(
+                task_found=True, success=False, task_id=task.task_id,
+                slice=slice, interface=interface,
+                error_message="poço de PPK vazio (escassez de QKD) — rotação adiada",
+            )
 
-        apply_result = self._ipsec_agent.apply_key_material(
-            connection, material.key_id, material.psk, ppk=material.ppk
+        # `reauth_with_ppk` e não `apply_key_material`: o PSK é fixo e
+        # quem rotaciona é o PPK, que entra na derivação no IKE_AUTH e
+        # portanto exige reautenticação. Ver ipsec_agent/agent.py.
+        apply_result = self._ipsec_agent.reauth_with_ppk(
+            connection, material.key_id, material.ppk
         )
 
         if apply_result.success:

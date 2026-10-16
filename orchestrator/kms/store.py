@@ -23,7 +23,12 @@ CREATE TABLE IF NOT EXISTS keys (
     key_id               TEXT PRIMARY KEY,
     slice                TEXT NOT NULL,
     interface            TEXT NOT NULL,
-    kem_algorithm         TEXT NOT NULL,
+    -- O que produziu o material desta chave. Era `kem_algorithm`,
+    -- quando o KMS rodava um ML-KEM local; renomeado porque o material
+    -- agora vem da QKDN (BB84+Cascade sobre SeQUeNCe, entregue pela API
+    -- ETSI GS QKD 014) e guardar isso numa coluna chamada
+    -- `kem_algorithm` enganaria quem lesse o banco. Ver kms/crypto.py.
+    key_source           TEXT NOT NULL,
     has_quantum_component INTEGER NOT NULL,
     state                TEXT NOT NULL,
     created_at           TEXT NOT NULL,
@@ -33,8 +38,14 @@ CREATE TABLE IF NOT EXISTS keys (
 
 CREATE TABLE IF NOT EXISTS key_secrets (
     key_id TEXT PRIMARY KEY REFERENCES keys(key_id),
+    -- Fica VAZIO (b"") desde que o PSK saiu da rotação: ele é fixo,
+    -- serve só para autenticação, e vive no secrets.conf do laboratório
+    -- (gerado por lab/ipsec/regen-secrets.py). A coluna continua
+    -- NOT NULL para não exigir migração de schema. Ver kms/crypto.py.
     psk    BLOB NOT NULL,
-    ppk    BLOB  -- NULL pra toda fatia exceto URLLC, ver kms/crypto.py
+    -- A chave de QKD, carregada no charon como PPK (RFC 8784). É ela
+    -- que rotaciona agora.
+    ppk    BLOB
 );
 
 CREATE INDEX IF NOT EXISTS idx_keys_slice_interface_state
@@ -47,7 +58,7 @@ def _row_to_info(row: sqlite3.Row) -> KeyStateInfo:
         key_id=row["key_id"],
         slice=SliceType(row["slice"]),
         interface=InterfaceType(row["interface"]),
-        kem_algorithm=row["kem_algorithm"],
+        key_source=row["key_source"],
         has_quantum_component=bool(row["has_quantum_component"]),
         state=KeyState(row["state"]),
         created_at=datetime.fromisoformat(row["created_at"]),
@@ -85,7 +96,7 @@ class KeyStore:
         key_id: str,
         slice: SliceType,
         interface: InterfaceType,
-        kem_algorithm: str,
+        key_source: str,
         has_quantum_component: bool,
         psk: bytes,
         state: KeyState,
@@ -96,14 +107,14 @@ class KeyStore:
         with self._tx() as conn:
             conn.execute(
                 """INSERT INTO keys
-                   (key_id, slice, interface, kem_algorithm, has_quantum_component,
+                   (key_id, slice, interface, key_source, has_quantum_component,
                     state, created_at, updated_at, reason)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     key_id,
                     slice.value,
                     interface.value,
-                    kem_algorithm,
+                    key_source,
                     int(has_quantum_component),
                     state.value,
                     now,

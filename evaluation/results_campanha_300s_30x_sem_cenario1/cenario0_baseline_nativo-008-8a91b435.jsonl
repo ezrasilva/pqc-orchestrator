@@ -1,0 +1,632 @@
+{"ts": 1791594727.180587, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "run_window_start", "scenario": "cenario0_baseline_nativo", "duration_seconds": 300}
+{"ts": 1791594727.3041162, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.5}
+{"ts": 1791594727.3800354, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 40.6}
+{"ts": 1791594727.5138571, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 73.4}
+{"ts": 1791594727.5907514, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.9}
+{"ts": 1791594727.6901562, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.3}
+{"ts": 1791594727.7869189, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.6}
+{"ts": 1791594727.8932462, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.8}
+{"ts": 1791594728.054791, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 111.0}
+{"ts": 1791594728.069052, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 21.4}
+{"ts": 1791594728.1730967, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 24.7}
+{"ts": 1791594728.193296, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594728.3164244, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 67.3}
+{"ts": 1791594728.4000812, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.5}
+{"ts": 1791594728.4924917, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.9}
+{"ts": 1791594728.5935867, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.6}
+{"ts": 1791594728.73022, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 79.6}
+{"ts": 1791594728.7779295, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.5}
+{"ts": 1791594728.9211135, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 68.9}
+{"ts": 1791594729.0078351, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 55.5}
+{"ts": 1791594729.1015968, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.5}
+{"ts": 1791594729.1932302, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594729.2021995, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.6}
+{"ts": 1791594729.3019934, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.2}
+{"ts": 1791594729.4386094, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 83.6}
+{"ts": 1791594729.4840906, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 28.2}
+{"ts": 1791594729.62152, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.1}
+{"ts": 1791594729.7054274, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.6}
+{"ts": 1791594729.7995825, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.0}
+{"ts": 1791594729.9012914, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.3}
+{"ts": 1791594730.0480874, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 89.8}
+{"ts": 1791594730.101565, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.2}
+{"ts": 1791594730.1933403, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594730.2380967, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 78.1}
+{"ts": 1791594730.2874289, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 27.1}
+{"ts": 1791594730.4269316, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.9}
+{"ts": 1791594730.5063984, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.4}
+{"ts": 1791594730.603058, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 41.5}
+{"ts": 1791594730.7378337, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 75.6}
+{"ts": 1791594730.7881637, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 25.1}
+{"ts": 1791594730.9245648, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 61.2}
+{"ts": 1791594731.0080707, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.1}
+{"ts": 1791594731.110015, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.9}
+{"ts": 1791594731.1937337, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594731.2150881, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.8}
+{"ts": 1791594731.3121936, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.8}
+{"ts": 1791594731.4485688, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 84.1}
+{"ts": 1791594731.4945264, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 29.8}
+{"ts": 1791594731.647559, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.7}
+{"ts": 1791594731.7005203, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 33.9}
+{"ts": 1791594731.8418972, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 75.1}
+{"ts": 1791594731.9443023, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 77.2}
+{"ts": 1791594732.0308516, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 63.2}
+{"ts": 1791594732.119908, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.7}
+{"ts": 1791594732.1934483, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594732.222457, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 53.4}
+{"ts": 1791594732.3367748, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 66.6}
+{"ts": 1791594732.3947458, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 25.7}
+{"ts": 1791594732.5424285, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 72.2}
+{"ts": 1791594732.6251807, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.6}
+{"ts": 1791594732.7188265, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.4}
+{"ts": 1791594732.8186328, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.6}
+{"ts": 1791594732.956907, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 83.8}
+{"ts": 1791594733.001347, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.4}
+{"ts": 1791594733.1440098, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 69.2}
+{"ts": 1791594733.193458, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594733.23163, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 56.1}
+{"ts": 1791594733.3237736, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.9}
+{"ts": 1791594733.4269848, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.1}
+{"ts": 1791594733.5247767, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.6}
+{"ts": 1791594733.6206524, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.6}
+{"ts": 1791594733.76744, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 89.6}
+{"ts": 1791594733.811958, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 33.3}
+{"ts": 1791594733.964021, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 84.7}
+{"ts": 1791594734.0100863, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 29.8}
+{"ts": 1791594734.1546369, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 72.9}
+{"ts": 1791594734.1937594, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594734.2387373, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 57.1}
+{"ts": 1791594734.335648, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 53.4}
+{"ts": 1791594734.4289808, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.2}
+{"ts": 1791594734.53421, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.0}
+{"ts": 1791594734.633521, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.1}
+{"ts": 1791594734.7260554, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.3}
+{"ts": 1791594734.8706172, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 87.1}
+{"ts": 1791594734.9183614, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 34.8}
+{"ts": 1791594735.0658877, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.5}
+{"ts": 1791594735.1154492, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 30.2}
+{"ts": 1791594735.1936793, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594735.257547, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 71.8}
+{"ts": 1791594735.3416476, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.8}
+{"ts": 1791594735.434656, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.8}
+{"ts": 1791594735.539525, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.7}
+{"ts": 1791594735.6705623, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.8}
+{"ts": 1791594735.7179265, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 29.2}
+{"ts": 1791594735.8680367, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 78.1}
+{"ts": 1791594735.9124918, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 23.2}
+{"ts": 1791594736.0578897, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 68.3}
+{"ts": 1791594736.14505, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.5}
+{"ts": 1791594736.1937075, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594736.2389925, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.1}
+{"ts": 1791594736.3446054, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 53.2}
+{"ts": 1791594736.4345613, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.6}
+{"ts": 1791594736.5711179, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 79.3}
+{"ts": 1791594736.6174455, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 25.1}
+{"ts": 1791594736.7666585, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 73.9}
+{"ts": 1791594736.871799, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 78.9}
+{"ts": 1791594736.9522688, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 59.3}
+{"ts": 1791594737.0421433, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.8}
+{"ts": 1791594737.1405058, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.1}
+{"ts": 1791594737.1933997, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594737.249753, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 55.0}
+{"ts": 1791594737.3466818, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.7}
+{"ts": 1791594737.4400127, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.1}
+{"ts": 1791594737.5412035, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.9}
+{"ts": 1791594737.6808445, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 85.3}
+{"ts": 1791594737.7261956, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 30.2}
+{"ts": 1791594737.8623767, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 66.1}
+{"ts": 1791594737.9453971, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.6}
+{"ts": 1791594738.0468574, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.3}
+{"ts": 1791594738.144881, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.6}
+{"ts": 1791594738.1941082, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594738.2854168, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 86.5}
+{"ts": 1791594738.3314333, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 31.6}
+{"ts": 1791594738.4741967, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 74.4}
+{"ts": 1791594738.55449, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.2}
+{"ts": 1791594738.6460927, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.0}
+{"ts": 1791594738.7491665, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.8}
+{"ts": 1791594738.8881834, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 84.8}
+{"ts": 1791594738.934835, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 30.6}
+{"ts": 1791594739.0750837, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 69.7}
+{"ts": 1791594739.1565769, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.6}
+{"ts": 1791594739.1937704, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594739.2544284, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.7}
+{"ts": 1791594739.3570018, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.2}
+{"ts": 1791594739.4502544, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.2}
+{"ts": 1791594739.590136, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.7}
+{"ts": 1791594739.6385546, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 29.1}
+{"ts": 1791594739.781412, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 71.5}
+{"ts": 1791594739.8651676, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.8}
+{"ts": 1791594739.9620647, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.7}
+{"ts": 1791594740.0555978, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.2}
+{"ts": 1791594740.1622124, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.7}
+{"ts": 1791594740.1936765, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594740.3011096, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 87.7}
+{"ts": 1791594740.3461351, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 31.9}
+{"ts": 1791594740.486386, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 72.0}
+{"ts": 1791594740.5670185, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.5}
+{"ts": 1791594740.6574805, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.0}
+{"ts": 1791594740.8055925, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 89.9}
+{"ts": 1791594740.8518069, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 35.0}
+{"ts": 1791594740.9900086, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 72.6}
+{"ts": 1791594741.094966, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 76.7}
+{"ts": 1791594741.1765287, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 57.3}
+{"ts": 1791594741.1938002, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594741.2683563, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.6}
+{"ts": 1791594741.4027765, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 82.3}
+{"ts": 1791594741.4485838, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 27.2}
+{"ts": 1791594741.5828357, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 61.5}
+{"ts": 1791594741.6829784, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 60.7}
+{"ts": 1791594741.7708554, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.0}
+{"ts": 1791594741.8680937, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.0}
+{"ts": 1791594741.9745302, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.4}
+{"ts": 1791594742.0697742, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.2}
+{"ts": 1791594742.1945612, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594742.2190392, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 93.9}
+{"ts": 1791594742.2792947, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.3}
+{"ts": 1791594742.3662412, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 40.4}
+{"ts": 1791594742.4675314, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 40.8}
+{"ts": 1791594742.6045594, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 77.1}
+{"ts": 1791594742.6498916, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 22.0}
+{"ts": 1791594742.788127, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 60.0}
+{"ts": 1791594742.8737388, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.1}
+{"ts": 1791594742.9778478, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.7}
+{"ts": 1791594743.0729744, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.1}
+{"ts": 1791594743.1950939, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594743.212305, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.9}
+{"ts": 1791594743.2571466, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 25.9}
+{"ts": 1791594743.3975744, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.1}
+{"ts": 1791594743.474896, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.0}
+{"ts": 1791594743.5771255, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.1}
+{"ts": 1791594743.7134867, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 80.0}
+{"ts": 1791594743.7597373, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.2}
+{"ts": 1791594743.9007642, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 66.9}
+{"ts": 1791594743.9831295, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.1}
+{"ts": 1791594744.0977454, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 61.9}
+{"ts": 1791594744.1827621, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.6}
+{"ts": 1791594744.195464, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594744.320855, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 84.4}
+{"ts": 1791594744.3621852, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.2}
+{"ts": 1791594744.5024579, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 66.0}
+{"ts": 1791594744.5889723, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.2}
+{"ts": 1791594744.680774, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.6}
+{"ts": 1791594744.78069, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.7}
+{"ts": 1791594744.9207602, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.9}
+{"ts": 1791594744.9690287, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 29.2}
+{"ts": 1791594745.106752, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.9}
+{"ts": 1791594745.192694, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.8}
+{"ts": 1791594745.1948323, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594745.288684, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.8}
+{"ts": 1791594745.396518, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 53.6}
+{"ts": 1791594745.4911194, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.0}
+{"ts": 1791594745.5854733, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 41.3}
+{"ts": 1791594745.7294014, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 84.5}
+{"ts": 1791594745.7780766, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 32.4}
+{"ts": 1791594745.9207196, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 74.5}
+{"ts": 1791594746.0071163, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 59.9}
+{"ts": 1791594746.1042411, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 56.8}
+{"ts": 1791594746.194706, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594746.1982818, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.0}
+{"ts": 1791594746.3029, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.3}
+{"ts": 1791594746.3948596, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.6}
+{"ts": 1791594746.534193, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.4}
+{"ts": 1791594746.5784397, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.0}
+{"ts": 1791594746.727123, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 74.0}
+{"ts": 1791594746.8043513, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.6}
+{"ts": 1791594746.901501, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.9}
+{"ts": 1791594746.997289, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.3}
+{"ts": 1791594747.1066592, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.1}
+{"ts": 1791594747.1947734, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594747.2050507, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.4}
+{"ts": 1791594747.323282, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 66.8}
+{"ts": 1791594747.4149277, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 58.8}
+{"ts": 1791594747.5105262, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 53.5}
+{"ts": 1791594747.6037667, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.5}
+{"ts": 1791594747.703023, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.4}
+{"ts": 1791594747.8504524, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 91.2}
+{"ts": 1791594747.9006755, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 41.5}
+{"ts": 1791594748.0417058, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.9}
+{"ts": 1791594748.0878575, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 27.0}
+{"ts": 1791594748.1949286, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594748.2297313, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 68.6}
+{"ts": 1791594748.3117537, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.7}
+{"ts": 1791594748.4132323, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.5}
+{"ts": 1791594748.5144799, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.9}
+{"ts": 1791594748.6094568, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.8}
+{"ts": 1791594748.7510748, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 87.2}
+{"ts": 1791594748.796113, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 32.1}
+{"ts": 1791594748.9413798, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 76.9}
+{"ts": 1791594749.0472336, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 82.8}
+{"ts": 1791594749.130677, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.0}
+{"ts": 1791594749.1949298, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594749.2175872, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.6}
+{"ts": 1791594749.3194366, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.6}
+{"ts": 1791594749.410709, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.0}
+{"ts": 1791594749.5461063, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 79.3}
+{"ts": 1791594749.5937955, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.5}
+{"ts": 1791594749.7330408, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.0}
+{"ts": 1791594749.8181493, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.8}
+{"ts": 1791594749.9136295, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.0}
+{"ts": 1791594750.0200481, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.3}
+{"ts": 1791594750.112133, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.7}
+{"ts": 1791594750.1950932, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594750.251462, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.4}
+{"ts": 1791594750.2974603, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.2}
+{"ts": 1791594750.4411757, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 70.0}
+{"ts": 1791594750.5226343, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.4}
+{"ts": 1791594750.6222212, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.4}
+{"ts": 1791594750.7599802, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 87.4}
+{"ts": 1791594750.8077781, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 34.8}
+{"ts": 1791594750.9538412, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 79.9}
+{"ts": 1791594751.0020523, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 26.5}
+{"ts": 1791594751.1467595, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 70.7}
+{"ts": 1791594751.1950629, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594751.227822, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.6}
+{"ts": 1791594751.3254864, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.8}
+{"ts": 1791594751.4270859, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.2}
+{"ts": 1791594751.5239663, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.8}
+{"ts": 1791594751.6211386, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 41.9}
+{"ts": 1791594751.7246997, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.4}
+{"ts": 1791594751.8630538, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 83.0}
+{"ts": 1791594751.909894, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 29.7}
+{"ts": 1791594752.0629299, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.8}
+{"ts": 1791594752.114191, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 31.9}
+{"ts": 1791594752.1952229, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594752.2742195, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 91.9}
+{"ts": 1791594752.3259716, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.6}
+{"ts": 1791594752.4685724, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 86.4}
+{"ts": 1791594752.516557, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 33.7}
+{"ts": 1791594752.6533556, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 69.2}
+{"ts": 1791594752.736628, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.9}
+{"ts": 1791594752.8305895, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.8}
+{"ts": 1791594752.9358199, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.1}
+{"ts": 1791594753.0336845, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 47.4}
+{"ts": 1791594753.1727915, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 86.0}
+{"ts": 1791594753.1958408, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594753.220236, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 32.9}
+{"ts": 1791594753.361165, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 73.6}
+{"ts": 1791594753.4440253, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 56.4}
+{"ts": 1791594753.5414655, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.0}
+{"ts": 1791594753.635388, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.4}
+{"ts": 1791594753.7342644, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 44.7}
+{"ts": 1791594753.8777227, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 87.1}
+{"ts": 1791594753.925924, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 35.0}
+{"ts": 1791594754.0675926, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 76.4}
+{"ts": 1791594754.173106, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.4}
+{"ts": 1791594754.1953983, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594754.2608118, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 68.6}
+{"ts": 1791594754.345102, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.1}
+{"ts": 1791594754.4411857, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 48.9}
+{"ts": 1791594754.5353236, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 41.7}
+{"ts": 1791594754.6397414, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.4}
+{"ts": 1791594754.7383754, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 43.4}
+{"ts": 1791594754.8741622, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 78.5}
+{"ts": 1791594754.9225242, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 25.9}
+{"ts": 1791594755.067723, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 70.8}
+{"ts": 1791594755.1521473, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.6}
+{"ts": 1791594755.1951518, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594755.2441208, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.7}
+{"ts": 1791594755.3519695, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.5}
+{"ts": 1791594755.4517622, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.6}
+{"ts": 1791594755.5498855, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 49.7}
+{"ts": 1791594755.6464944, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.4}
+{"ts": 1791594755.785261, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 84.0}
+{"ts": 1791594755.8337657, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 32.4}
+{"ts": 1791594755.9748714, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 72.9}
+{"ts": 1791594756.0789702, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 76.7}
+{"ts": 1791594756.1646683, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 61.6}
+{"ts": 1791594756.1958888, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594756.2462852, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.3}
+{"ts": 1791594756.349755, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.3}
+{"ts": 1791594756.4852016, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 81.3}
+{"ts": 1791594756.5314863, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 27.0}
+{"ts": 1791594756.6760855, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 71.3}
+{"ts": 1791594756.7621167, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 56.7}
+{"ts": 1791594756.8592367, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 53.0}
+{"ts": 1791594756.957605, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.1}
+{"ts": 1791594757.0572867, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.5}
+{"ts": 1791594757.1621473, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 54.3}
+{"ts": 1791594757.1952903, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594757.264429, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 56.0}
+{"ts": 1791594757.3614423, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 52.6}
+{"ts": 1791594757.4549694, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.1}
+{"ts": 1791594757.5529451, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 42.9}
+{"ts": 1791594757.6892507, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 77.8}
+{"ts": 1791594757.7951705, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 83.0}
+{"ts": 1791594757.8770614, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 64.5}
+{"ts": 1791594757.9636304, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 50.4}
+{"ts": 1791594758.0604947, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 46.7}
+{"ts": 1791594758.1960022, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594758.2019167, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 87.2}
+{"ts": 1791594758.2459502, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 30.2}
+{"ts": 1791594758.381262, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 65.3}
+{"ts": 1791594758.4620352, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 45.5}
+{"ts": 1791594758.5688422, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_sample", "label": "urllc", "iface": "tun_srsue", "rtt_ms": 51.7}
+{"ts": 1791594759.195523, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594760.1955914, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594761.1958177, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594762.1956584, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594763.1956866, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594764.1957026, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594765.1957335, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594766.1958234, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594767.1958125, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594768.1960325, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594769.1958823, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594770.1959064, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594771.1959453, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594772.1959739, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594773.1959908, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594774.1960175, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594775.196033, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594776.1960368, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594777.1963718, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594778.196111, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594779.1961446, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594780.196161, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594781.1962059, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594782.1962018, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594783.196259, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594784.1962624, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594785.1962848, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594786.196343, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594787.196373, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594788.196349, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594789.1963902, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594790.1964047, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594791.1964643, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594792.1964977, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594793.1964881, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594794.1965435, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594795.196525, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594796.1965773, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594797.1966271, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594798.1966224, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594799.196643, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594800.1967196, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594801.1967895, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594802.1968672, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594803.1968594, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594804.1968622, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594805.1969445, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594806.1969512, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594807.1969898, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594808.197005, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594809.1970255, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594810.197106, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594811.1971846, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594812.1971772, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594813.197172, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594814.1972945, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594815.197257, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594816.1972628, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594817.1976454, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594818.1973999, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594819.197438, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594820.1974583, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594821.19758, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594822.1976364, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594823.1976671, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594824.1977005, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594825.1977067, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594826.1981049, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594827.1978302, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594828.197823, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594829.1978364, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594830.1978815, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594831.1979332, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594832.1980424, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594833.1984224, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594834.198172, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594835.1981957, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594836.198266, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594837.198338, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594838.1983583, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594839.1983767, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594840.19841, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594841.1984344, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594842.198489, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594843.1984708, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594844.1986287, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594845.198638, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594846.1986444, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594847.1986864, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594848.1987119, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594849.198737, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594850.1987662, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594851.1987748, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594852.1988204, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594853.1988354, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594854.1988754, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594855.1988847, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594856.1989222, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594857.199002, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594858.199023, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594859.1990192, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594860.199122, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594861.1993237, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594862.199114, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594863.1991272, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594864.1991436, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594865.19916, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594866.199214, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594867.199341, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594868.1993043, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594869.1996434, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594870.1995745, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594871.199601, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594872.1996713, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594873.1996565, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594874.1996539, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594875.1999865, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594876.1998034, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594877.1998472, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594878.1999207, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594879.1998847, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594880.1999056, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594881.1999831, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594882.1999726, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594883.200038, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594884.200007, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594885.200189, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594886.2001235, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594887.2001998, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594888.2001894, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594889.200192, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594890.2002282, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594891.2002673, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594892.200271, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594893.2004216, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594894.2003577, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594895.2004287, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594896.2004645, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594897.2004256, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594898.2004507, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594899.2004507, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594900.2004852, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594901.2005131, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594902.2005854, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594903.200572, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594904.2005913, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594905.2006059, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594906.200681, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594907.2006867, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594908.200723, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594909.200725, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594910.200776, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594911.2007806, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594912.2008312, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594913.2008324, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594914.200832, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594915.2009044, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594916.2011192, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594917.2010138, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594918.2011683, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594919.2012312, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594920.2011704, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594921.2015357, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594922.2012846, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594923.2013578, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594924.2013931, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594925.2014296, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594926.2014802, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594927.2014823, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594928.2014928, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594929.2017336, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594930.2016008, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594931.2016358, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594932.2017047, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594933.2017305, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594934.2017682, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594935.2017448, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594936.2017772, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594937.2019348, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594938.2018886, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594939.2019086, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594940.2019248, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594941.2019558, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594942.20202, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594943.2020626, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594944.2020721, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594945.202067, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594946.2021, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594947.2021484, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594948.2021601, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594949.2021837, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594950.2022307, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594951.2022338, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594952.202276, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594953.2023196, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594954.2023034, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594955.2023385, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594956.202376, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594957.2024508, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594958.2024543, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594959.202514, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594960.202536, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594961.2026334, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594962.202587, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594963.2026355, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594964.2026143, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594965.2026727, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594966.2027385, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594967.2027955, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594968.202803, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594969.2029543, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594970.2031226, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594971.2029266, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594972.2032716, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594973.2030215, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594974.2030475, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594975.2030706, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594976.203135, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594977.203145, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594978.2031782, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594979.203198, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594980.2032092, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594981.2032604, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594982.203276, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594983.2032905, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594984.2033415, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594985.2033627, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594986.2036178, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594987.2035933, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594988.2035437, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594989.2038279, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594990.2036016, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594991.2036295, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594992.2037246, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594993.2037241, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594994.2037537, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594995.203772, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594996.2037902, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594997.203879, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594998.2038734, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791594999.2039075, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595000.2039282, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595001.2039587, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595002.2039747, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595003.2039762, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595004.203995, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595005.2040508, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595006.2043064, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595007.2041688, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595008.2041757, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595009.2041845, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595010.2042003, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595011.2042322, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595012.2042806, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595013.2045667, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595014.2043474, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595015.204368, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595016.204409, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595017.2044334, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595018.2044601, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595019.2045088, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595020.2045164, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595021.2045517, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595022.2045908, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595023.2045994, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595024.2046669, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595025.2046707, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595026.2048895, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595027.2049162, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595028.2048697, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595029.2048776, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595030.2049115, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595031.2049491, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595032.2049665, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595033.204961, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595034.2050385, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 2.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595035.2050364, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595036.2050707, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595037.205084, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595038.205103, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595038.2868965, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "latency_probe_summary", "label": "urllc", "iface": "tun_srsue", "sent": 3000, "received": 312, "loss_percent": 89.6}
+{"ts": 1791595039.2051373, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595040.2052, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595041.2052422, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 0.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595042.2052498, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "resource_snapshot", "process": "experiment", "pid": 668964, "cpu_percent": 1.0, "rss_kb": 38268, "mem_percent": 0.16}
+{"ts": 1791595042.2872307, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "throughput_probe_failed", "label": "embb", "stderr": "timeout esperando iperf3 (servidor fora do ar?)"}
+{"ts": 1791595042.316351, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "throughput_probe_failed", "label": "miot", "stderr": "timeout esperando iperf3 (servidor fora do ar?)"}
+{"ts": 1791595042.3165681, "run_id": "cenario0_baseline_nativo-008-8a91b435", "event": "run_window_end", "scenario": "cenario0_baseline_nativo"}

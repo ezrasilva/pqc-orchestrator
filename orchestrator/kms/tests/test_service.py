@@ -4,16 +4,18 @@ from kms.exceptions import InvalidTransitionError, KeyNotFoundError
 from kms.models import InterfaceType, KeyState, SliceType
 
 
-def test_generate_starts_pending(core):
-    material = core.generate(SliceType.URLLC, InterfaceType.F1, reason="test")
+def test_provision_ppk_starts_pending(core, ppk_provider):
+    material = core.provision_ppk(SliceType.URLLC, InterfaceType.F1, reason="test", provider=ppk_provider)
     info = core.get_state(material.key_id)
     assert info.state is KeyState.PENDING
-    assert info.kem_algorithm == "ML-KEM-768"
+    # O material vem da QKDN agora, não de um ML-KEM local — ver
+    # kms/crypto.py para por que o ML-KEM local saiu.
+    assert info.key_source.startswith("QKD/BB84+Cascade via ETSI 014")
     assert core.get_psk(material.key_id) == material.psk
 
 
-def test_activate_then_appears_as_active_key(core):
-    material = core.generate(SliceType.EMBB, InterfaceType.N3)
+def test_activate_then_appears_as_active_key(core, ppk_provider):
+    material = core.provision_ppk(SliceType.EMBB, InterfaceType.N3, provider=ppk_provider)
     core.activate(material.key_id)
 
     active = core.get_active_key(SliceType.EMBB, InterfaceType.N3)
@@ -22,20 +24,20 @@ def test_activate_then_appears_as_active_key(core):
     assert active.state is KeyState.ACTIVE
 
 
-def test_invalid_transition_rejected(core):
-    material = core.generate(SliceType.MIOT, InterfaceType.N3)
+def test_invalid_transition_rejected(core, ppk_provider):
+    material = core.provision_ppk(SliceType.MIOT, InterfaceType.N3, provider=ppk_provider)
     # PENDING não pode ir direto pra QUARANTINED (tem que passar por ACTIVE)
     with pytest.raises(InvalidTransitionError):
         core.quarantine(material.key_id, "teste")
 
 
-def test_full_rotation_cycle(core):
+def test_full_rotation_cycle(core, ppk_provider):
     """Caminho principal descrito na arquitetura: gera substituta, marca a
     antiga como RENEWING, ativa a nova, revoga e zeroiza a antiga."""
-    old = core.generate(SliceType.URLLC, InterfaceType.F1, reason="initial")
+    old = core.provision_ppk(SliceType.URLLC, InterfaceType.F1, reason="initial", provider=ppk_provider)
     core.activate(old.key_id)
 
-    new = core.generate(SliceType.URLLC, InterfaceType.F1, reason="rotation")
+    new = core.provision_ppk(SliceType.URLLC, InterfaceType.F1, reason="rotation", provider=ppk_provider)
     core.mark_renewing(old.key_id, "substituta gerada")
     assert core.get_state(old.key_id).state is KeyState.RENEWING
     # RENEWING ainda conta como "em uso" pra GetActiveKey
@@ -51,8 +53,8 @@ def test_full_rotation_cycle(core):
         core.get_psk(old.key_id)  # material realmente sumiu
 
 
-def test_quarantine_and_release(core):
-    material = core.generate(SliceType.EMBB, InterfaceType.F1)
+def test_quarantine_and_release(core, ppk_provider):
+    material = core.provision_ppk(SliceType.EMBB, InterfaceType.F1, provider=ppk_provider)
     core.activate(material.key_id)
     core.quarantine(material.key_id, "suspeita de comprometimento")
     assert core.get_state(material.key_id).state is KeyState.QUARANTINED
@@ -64,23 +66,23 @@ def test_quarantine_and_release(core):
     assert core.get_active_key(SliceType.EMBB, InterfaceType.F1).key_id == material.key_id
 
 
-def test_failed_key_can_be_zeroized_without_revoke(core):
-    material = core.generate(SliceType.MIOT, InterfaceType.N3)
+def test_failed_key_can_be_zeroized_without_revoke(core, ppk_provider):
+    material = core.provision_ppk(SliceType.MIOT, InterfaceType.N3, provider=ppk_provider)
     core.mark_failed(material.key_id, "IPsec Agent recusou o material")
     core.zeroize(material.key_id)
     assert core.get_state(material.key_id).state is KeyState.ZEROIZED
 
 
-def test_zeroized_is_terminal(core):
-    material = core.generate(SliceType.MIOT, InterfaceType.N3)
+def test_zeroized_is_terminal(core, ppk_provider):
+    material = core.provision_ppk(SliceType.MIOT, InterfaceType.N3, provider=ppk_provider)
     core.mark_failed(material.key_id, "teste")
     core.zeroize(material.key_id)
     with pytest.raises(InvalidTransitionError):
         core.activate(material.key_id)
 
 
-def test_list_history_reflects_lifecycle(core):
-    material = core.generate(SliceType.URLLC, InterfaceType.F1)
+def test_list_history_reflects_lifecycle(core, ppk_provider):
+    material = core.provision_ppk(SliceType.URLLC, InterfaceType.F1, provider=ppk_provider)
     core.activate(material.key_id)
     core.revoke(material.key_id, "fim do teste")
 

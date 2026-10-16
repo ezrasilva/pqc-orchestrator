@@ -14,14 +14,34 @@ class FakeIpsecAgent:
     def __init__(self, fail_connections: frozenset[ConnectionName] = frozenset()):
         self._fail_connections = fail_connections
         self.applied_calls: list[tuple] = []
+        self.reauth_calls: list[tuple] = []
+        self.rekey_child_calls: list = []
         self._current_key_id: dict[ConnectionName, str] = {}
 
-    def apply_key_material(self, connection, key_id, psk, ppk=None):
-        self.applied_calls.append((connection, key_id, psk, ppk))
+    def _resultado(self, connection, key_id):
         if connection in self._fail_connections:
             return ApplyResult(success=False, error_message="falha simulada", applied_at=None)
         self._current_key_id[connection] = key_id
         return ApplyResult(success=True, error_message="", applied_at=datetime.now(timezone.utc))
+
+    def reauth_with_ppk(self, connection, key_id, ppk):
+        """Caminho CARO da rotação: PPK novo + reautenticação. É o que o
+        SMO usa desde que o PSK saiu da rotação."""
+        self.reauth_calls.append((connection, key_id, ppk))
+        self.applied_calls.append((connection, key_id, b"", ppk))
+        return self._resultado(connection, key_id)
+
+    def rekey_child(self, connection):
+        """Caminho BARATO: só rederiva material do ESP, sem segredo
+        novo. A Fase A mediu zero perda de pacote nele."""
+        self.rekey_child_calls.append(connection)
+        return self._resultado(connection, self._current_key_id.get(connection, ""))
+
+    def apply_key_material(self, connection, key_id, psk, ppk=None):
+        """Caminho legado, mantido porque os cenários antigos da campanha
+        de 12-15/10 ainda o chamam."""
+        self.applied_calls.append((connection, key_id, psk, ppk))
+        return self._resultado(connection, key_id)
 
     def list_connections(self):
         return [

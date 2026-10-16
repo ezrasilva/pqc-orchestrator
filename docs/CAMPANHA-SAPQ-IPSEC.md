@@ -293,7 +293,15 @@ Os itens abaixo são do repositório ezrasilva/pqc-orchestrator (commit a3ba1d6)
 - [ ] Runner: sortear e intercalar a ordem dos cenários entre as repetições.
 - [ ] `orchestrator/kms/crypto.py`: remover o ML-KEM local; o KMS passa a entregar a chave QKD (ETSI GS QKD 014 do QuDitto, rodando local) e a busca é feita antes do reauth, fora do caminho crítico do rekey; a chave entra no charon como PPK.
 - [x] `orchestrator/ipsec_agent/agent.py`: separar `rekey_child()` de `reauth_with_ppk()`; o PSK fica fixo, só para autenticação. *(Feito em 16/10. `rekey_child()` não carrega segredo nenhum e mediu 2,4–3,2 ms nas três fatias; `reauth_with_ppk()` instala o PPK nos dois lados e reautentica, e recusa conexão sem `ppk_id`. Exigiu `rekey_child`/`listen_child_rekey` novos no `vici_client.py` e um `_wait_for_fresh_child_sa` próprio, porque o payload de evento de Child SA tem forma diferente do de IKE_SA. `apply_key_material` fica como caminho legado dos cenários antigos.)*
-- [ ] `lab/ipsec/swanctl-*/conf.d/connections.conf`: `ppk_id` e `ppk_required = yes` nas três fatias; propostas parametrizadas por perfil (K0–K5); conferir `make_before_break` no strongswan.conf.
+- [x] `lab/ipsec/swanctl-*/conf.d/connections.conf`: `ppk_id` e `ppk_required = yes` nas três fatias; propostas por perfil; `make_before_break` explícito. *(Feito em 16/10, validado ao vivo — as três sobem com `/PPK` na proposta negociada:)*
+
+  | Fatia | Perfil | Negociado no IKE | ESP | KE do rekey de Child SA |
+  | --- | --- | --- | --- | --- |
+  | urllc | K5 | AES-256 / CURVE\_25519 + KE1\_ML\_KEM\_768 / **PPK** | AES-256-GCM | ML-KEM-768 |
+  | embb | K2 | AES-128 / ML\_KEM\_768 / **PPK** | AES-128-GCM | ML-KEM-768 |
+  | miot | K4 | AES-256 / ML\_KEM\_1024 / **PPK** | AES-256-GCM | ML-KEM-1024 |
+
+  O `modp2048` saiu das três propostas: a Fase A confirmou que ML-KEM puro é KE primário válido e que o grupo clássico só é necessário no caso híbrido (urllc). A cifra da eMBB é AES-128 por decisão da A.3 — ela é limitada por vazão, e o AES-128 entrega 9,2% mais. O `make_before_break = yes` ficou explícito em `lab/ipsec/strongswan.d/zz-sapq-ipsec.conf` em vez de herdado do default, porque a A.2 mostrou que é requisito.
 - [ ] Instrumentação: `timed()` em volta da busca do PPK e de cada `load_shared`, coletor de `ip xfrm monitor`, log `ike` do charon com timestamp.
 - [ ] Coletores novos: ping e iperf3 direto no N3 (namespace da CU → namespace do UPF), CPU de OCUDU, UPF e softirq.
 - [x] Script da Fase A: roda cada perfil no N3 sem o testbed de rádio. *(Completo em 15/10: `evaluation/phase_a/` com as seis medições — `profiles.py`, `bench_n3.py` (A.1/A.2/A.3/A.4), `rekey_traffic.py`, `dataplane.py`, `scale.py`, `kem_bench.py` (A.5) e `netem.py` (A.6).)*

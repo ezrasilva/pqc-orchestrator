@@ -31,6 +31,7 @@ from evaluation import instrumentation, lab_control
 from evaluation.collectors.classification_stats import ClassificationStatsPoller
 from evaluation.collectors.resource import ResourcePoller, find_charon_pid
 from evaluation.collectors.traffic import run_latency_probe, run_throughput_probe
+from evaluation.collectors.xfrm_monitor import XfrmMonitor
 from evaluation.collectors.xfrm_state import XfrmStatePoller
 from evaluation.instrumentation import emit
 from evaluation.rotation_driver import RotationDriver
@@ -161,6 +162,58 @@ QKDN_SLAVE_SAE_ID = "B"
 PPK_POOL_DEPTH = 3
 
 
+# Logs do IKE, um por lado do túnel. O caminho reflete o bind-mount de
+# `/run` por netns feito em lab/ipsec/start-ipsec-side.sh, e o nome tem
+# ponto porque o perfil AppArmor do charon só permite escrita em
+# `/run/charon.*` — ver lab/ipsec/strongswan.d/zz-sapq-ipsec.conf.
+CHARON_IKE_LOGS = {
+    "cu-ns": Path("/run/ipsec-cu-ns/charon.ike.log"),
+    "5gc-edge-ns": Path("/run/ipsec-5gc-edge-ns/charon.ike.log"),
+}
+
+
+def _charon_log_offsets() -> dict[str, int]:
+    """Tamanho atual de cada log do IKE, para recortar só o trecho desta
+    execução no fim."""
+    offsets = {}
+    for netns, caminho in CHARON_IKE_LOGS.items():
+        try:
+            offsets[netns] = caminho.stat().st_size
+        except OSError:
+            offsets[netns] = 0
+    return offsets
+
+
+def _archive_charon_logs(run_id: str, offsets: dict[str, int]) -> list[Path]:
+    """Copia o DELTA de cada log do IKE para o diretório de resultados.
+
+    **Por que o delta e não o arquivo todo.** O charon não é reiniciado
+    entre iterações (reiniciar custaria ~8 s e mudaria o estado que a
+    iteração quer medir), então o log acumula a campanha inteira. Copiar
+    tudo a cada iteração duplicaria o histórico N vezes e deixaria a
+    análise sem saber que linha pertence a qual execução.
+
+    O recorte por offset é seguro porque `append = yes` e `flush_line =
+    yes`: o arquivo só cresce, e as linhas já estão no disco quando a
+    janela fecha.
+    """
+    arquivados = []
+    for netns, caminho in CHARON_IKE_LOGS.items():
+        inicio = offsets.get(netns, 0)
+        try:
+            with caminho.open("rb") as origem:
+                origem.seek(inicio)
+                trecho = origem.read()
+        except OSError:
+            continue
+        if not trecho:
+            continue
+        destino = RESULTS_DIR / f"{run_id}-charon-{netns}.ike.log"
+        destino.write_bytes(trecho)
+        arquivados.append(destino)
+    return arquivados
+
+
 def _build_smo() -> tuple[SmoCore, SchedulerCore, KeyStore, PpkProvider]:
     store = KeyStore(RESULTS_DIR / ".kms-experiment.sqlite3")
     kms = KeyManagementCore(store)
@@ -194,6 +247,7 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
     smo = scheduler = store = ppk_provider = None
     rotation_driver = None
     xfrm_poller = classification_poller = resource_poller = None
+    xfrm_monitors: list = []
 
     try:
         print(f"[{run_id}] setup...")
@@ -225,6 +279,20 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         # esse problema — a regra nunca é removida, só o contador
         # cresce — por isso fica em 0.5s.
         xfrm_poller = XfrmStatePoller("cu-ns", interval_seconds=0.1)
+        # Monitor orientado a evento, nos DOIS lados do túnel. A amostragem
+        # do poller acima dá os contadores por SPI (isolamento); o monitor
+        # dá o INSTANTE de cada instalação e remoção de SA, com o relógio
+        # do kernel.
+        #
+        # **Por que nos dois namespaces.** A Fase A mediu que, com
+        # make-before-break, a interrupção existe só no sentido
+        # responder -> initiator: o initiator (CU) troca a própria SA de
+        # saída de forma atômica — confirmado pelo monitor, que mostra a
+        # SA nova entrando 417 µs ANTES de a velha sair —, enquanto a
+        # borda troca a dela ao processar a troca. Monitorar só a CU
+        # mostraria sobreposição sempre e perderia justamente a lacuna
+        # que causa a perda medida.
+        xfrm_monitors = [XfrmMonitor(ns) for ns in ("cu-ns", "5gc-edge-ns")]
         classification_poller = ClassificationStatsPoller("cu-ns", interval_seconds=0.5)
         resource_poller = ResourcePoller(pids, interval_seconds=1)
 
@@ -232,11 +300,16 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         time.sleep(warmup_seconds)
 
         xfrm_poller.start()
+        for m in xfrm_monitors:
+            m.start()
         classification_poller.start()
         resource_poller.start()
         if rotation_driver is not None:
             rotation_driver.start()
 
+        # Marca o ponto de corte dos logs do IKE ANTES da janela, para o
+        # trecho arquivado conter exatamente esta execução.
+        charon_offsets = _charon_log_offsets()
         emit("run_window_start", scenario=module.NAME, duration_seconds=duration_seconds)
 
         if scenario_key == "4" and smo is not None:
@@ -271,6 +344,11 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
             _run_traffic_plan(module.traffic_plan(), duration_seconds)
 
         emit("run_window_end", scenario=module.NAME)
+        arquivados = _archive_charon_logs(run_id, charon_offsets)
+        if arquivados:
+            emit("charon_ike_log_archived",
+                 files=[p.name for p in arquivados],
+                 note="log do IKE com timestamp de microssegundo, um por lado do túnel")
         # **Achado real investigando o gap de isolamento (B.3)**: testei
         # manualmente (iperf3 isolado + concorrente nas 3 fatias,
         # contagem limpa antes/depois) e o gap classificação-vs-SA
@@ -286,6 +364,8 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
     finally:
         if xfrm_poller is not None:
             xfrm_poller.stop()
+        for m in xfrm_monitors:
+            m.stop()
         if classification_poller is not None:
             classification_poller.stop()
         if resource_poller is not None:

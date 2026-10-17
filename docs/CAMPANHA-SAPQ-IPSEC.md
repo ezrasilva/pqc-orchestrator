@@ -308,7 +308,20 @@ Os itens abaixo são do repositório ezrasilva/pqc-orchestrator (commit a3ba1d6)
   | miot | K4 | AES-256 / ML\_KEM\_1024 / **PPK** | AES-256-GCM | ML-KEM-1024 |
 
   O `modp2048` saiu das três propostas: a Fase A confirmou que ML-KEM puro é KE primário válido e que o grupo clássico só é necessário no caso híbrido (urllc). A cifra da eMBB é AES-128 por decisão da A.3 — ela é limitada por vazão, e o AES-128 entrega 9,2% mais. O `make_before_break = yes` ficou explícito em `lab/ipsec/strongswan.d/zz-sapq-ipsec.conf` em vez de herdado do default, porque a A.2 mostrou que é requisito.
-- [ ] Instrumentação: `timed()` em volta da busca do PPK e de cada `load_shared`, coletor de `ip xfrm monitor`, log `ike` do charon com timestamp.
+- [x] Instrumentação: `timed()` na busca do PPK e no `load_shared`, coletor de `ip xfrm monitor`, log `ike` do charon com timestamp. *(Feito em 17/10.)*
+
+  O `timed()` saiu no mesmo commit do KMS (`ppk_fetch`, `ppk_install`, `reauth`, `child_rekey`). O novo `evaluation/collectors/xfrm_monitor.py` é **orientado a evento**, nos dois lados do túnel: o poller de `xfrm_state` amostra contadores a cada 0,1 s e serve ao isolamento, mas não responde *quando* uma SA entrou ou saiu — um rekey inteiro acontece entre duas amostras. O log do IKE sai com timestamp de **microssegundo**, um arquivo por lado, arquivado por execução junto do `.jsonl`.
+
+  **O monitor confirmou, pelo relógio do kernel, o mecanismo que a A.2 só media de forma indireta.** Num rekey de Child SA:
+
+  | Lado | Instante | Ação | SPI |
+  | --- | --- | --- | --- |
+  | borda (responder) | .205060 | **added out** | 0xc09fef4e |
+  | CU (initiator) | .206466 | **updated in** | 0xc09fef4e |
+
+  A borda instala a SA de saída **1,4 ms antes** de a CU terminar de instalar a de entrada correspondente; nessa janela ela transmite numa SA que a CU ainda não aceita. É a perda de ~1,8 ms que a A.2 mediu no sentido responder → initiator, agora com a causa visível em vez de inferida. No sentido oposto o monitor mostra a SA nova entrando **417 µs antes** de a velha sair — sobreposição, não lacuna —, o que explica os zero pacotes perdidos na ida.
+
+  Filtrar ruído era essencial: numa janela de 30 s o monitor emitiu **1169 `replay update` contra 13 eventos úteis** por lado. Os descartados são contados e reportados em agregado, para a filtragem ser auditável.
 - [ ] Coletores novos: ping e iperf3 direto no N3 (namespace da CU → namespace do UPF), CPU de OCUDU, UPF e softirq.
 - [x] Script da Fase A: roda cada perfil no N3 sem o testbed de rádio. *(Completo em 15/10: `evaluation/phase_a/` com as seis medições — `profiles.py`, `bench_n3.py` (A.1/A.2/A.3/A.4), `rekey_traffic.py`, `dataplane.py`, `scale.py`, `kem_bench.py` (A.5) e `netem.py` (A.6).)*
 - [x] Fase A: eixo de RTT com `netem` (A.6). *(Feito em 15/10: `phase_a/netem.py`; validado em 0/5/20 ms por sentido → 0,03 / 10,09 / 40,08 ms de RTT medido.)*

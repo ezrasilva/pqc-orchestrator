@@ -240,11 +240,33 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         emit("run_window_start", scenario=module.NAME, duration_seconds=duration_seconds)
 
         if scenario_key == "4" and smo is not None:
-            half = duration_seconds / 2
-            time.sleep(half)
-            print(f"[{run_id}] disparando contenção...")
+            # O tráfego roda a janela INTEIRA, em paralelo, e a contenção
+            # é disparada no meio dela.
+            #
+            # **Por que isto mudou.** A versão anterior dormia metade da
+            # janela SEM TRÁFEGO, disparava a contenção e só então
+            # iniciava o tráfego pela metade restante. Ou seja: a rajada
+            # de rotações acontecia num enlace OCIOSO, e o tráfego só
+            # começava depois que ela já tinha passado. O C4 existe para
+            # medir o efeito da contenção SOBRE o tráfego — latência,
+            # perda e jitter das fatias enquanto as rotações disputam —
+            # e nesse desenho ele media o efeito sobre nada, com metade
+            # da amostra de tráfego perdida de brinde.
+            metade = duration_seconds / 2
+            thread_trafego = threading.Thread(
+                target=_run_traffic_plan,
+                args=(module.traffic_plan(), duration_seconds),
+                daemon=True,
+            )
+            thread_trafego.start()
+            time.sleep(metade)
+            print(f"[{run_id}] disparando contenção (tráfego rodando desde t=0)...")
+            emit("contention_triggered", scenario=module.NAME,
+                 offset_seconds=metade, duration_seconds=duration_seconds)
             module.trigger_contention(smo, scheduler)
-            _run_traffic_plan(module.traffic_plan(), int(duration_seconds - half))
+            # Mesma folga que o `_run_traffic_plan` usa no join, para a
+            # janela não ser cortada antes das sondas terminarem.
+            thread_trafego.join(timeout=duration_seconds + 30)
         else:
             _run_traffic_plan(module.traffic_plan(), duration_seconds)
 
@@ -296,6 +318,11 @@ def main() -> int:
     parser.add_argument("--iterations", type=int, default=10, help="repetições por cenário (default: 10)")
     parser.add_argument("--duration", type=int, default=300, help="segundos de coleta por execução (default: 300)")
     parser.add_argument("--warmup", type=int, default=10, help="segundos descartados no início de cada execução")
+    parser.add_argument("--no-shuffle", dest="shuffle", action="store_false",
+                        help="roda os cenários na ordem dada, agrupados por cenário, "
+                             "em vez de blocos aleatorizados. Útil para depurar um "
+                             "cenário, mas confunde deriva temporal com cenário — não "
+                             "usar para colher resultados")
     args = parser.parse_args()
 
     # Achado real: uma campanha inteira (50 execuções) rodou contaminada
@@ -320,22 +347,47 @@ def main() -> int:
     # acumula log de gNB/UE o bastante pra encher os 12GB sozinha.
     lab_control.ensure_disk_headroom()
 
+    # Ordem de execução em BLOCOS ALEATORIZADOS: uma rodada por
+    # repetição, com os cenários sorteados dentro de cada rodada.
+    #
+    # **Por que isto importa para a validade dos resultados.** A versão
+    # anterior rodava todas as iterações do cenário 1, depois todas do 2,
+    # e assim por diante. Qualquer deriva temporal da bancada fica
+    # PERFEITAMENTE CONFUNDIDA com o cenário nesse desenho — e esta VM
+    # tem derivas documentadas e reais: o `/tmp` é um tmpfs de 12 GB que
+    # os logs de gNB/UE enchem ao longo de uma campanha (já encheu, e
+    # zerou 30 iterações), o consumo de CPU do rádio ZMQ varia, e a
+    # própria QKDN acumula estado. Com a ordem em blocos, essas derivas
+    # se distribuem entre os cenários em vez de penalizar o último.
+    #
+    # Uma rodada completa também significa que uma campanha interrompida
+    # no meio ainda tem N repetições de TODOS os cenários, em vez de
+    # todas de alguns e nenhuma dos outros.
+    ordem: list[tuple[str, int]] = []
+    for i in range(1, args.iterations + 1):
+        rodada = list(scenario_keys)
+        if args.shuffle:
+            random.shuffle(rodada)
+        ordem.extend((key, i) for key in rodada)
+    if args.shuffle:
+        print(f"ordem de execução (blocos aleatorizados): "
+              f"{[k for k, _ in ordem[:len(scenario_keys) * 2]]}...")
+
     log_paths = []
     failures = []
-    for key in scenario_keys:
-        for i in range(1, args.iterations + 1):
-            print(f"=== cenário {key}, iteração {i}/{args.iterations} ===")
-            # checagem barata entre execuções — numa campanha de horas,
-            # o /tmp pode passar do limite no meio, não só no começo.
-            lab_control.ensure_disk_headroom()
-            try:
-                log_paths.append(run_once(key, i, args.duration, args.warmup))
-            except Exception as exc:
-                # uma falha numa execução não pode derrubar a campanha
-                # inteira (achado real: já aconteceu, ver docstring de
-                # run_once) — loga e segue pra próxima.
-                print(f"=== FALHOU: cenário {key}, iteração {i}: {exc!r} — seguindo pra próxima ===")
-                failures.append((key, i, repr(exc)))
+    for key, i in ordem:
+        print(f"=== cenário {key}, iteração {i}/{args.iterations} ===")
+        # checagem barata entre execuções — numa campanha de horas,
+        # o /tmp pode passar do limite no meio, não só no começo.
+        lab_control.ensure_disk_headroom()
+        try:
+            log_paths.append(run_once(key, i, args.duration, args.warmup))
+        except Exception as exc:
+            # uma falha numa execução não pode derrubar a campanha
+            # inteira (achado real: já aconteceu, ver docstring de
+            # run_once) — loga e segue pra próxima.
+            print(f"=== FALHOU: cenário {key}, iteração {i}: {exc!r} — seguindo pra próxima ===")
+            failures.append((key, i, repr(exc)))
 
     print("\nArquivos gerados:")
     for path in log_paths:

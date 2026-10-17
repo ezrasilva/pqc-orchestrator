@@ -290,9 +290,9 @@ Os itens abaixo são do repositório ezrasilva/pqc-orchestrator (commit a3ba1d6)
 - [x] `evaluation/rotation_driver.py`: enfileirar por idade, com dois tipos de tarefa. *(Feito em 17/10.)* `TaskType.REKEY_CHILD` e `TaskType.REAUTH_PPK` novos; o driver lê **duas** idades por fatia (a da Child SA governa o `Tr_child`, a da IKE_SA governa o `Tr_ppk` — linhas diferentes do `swanctl`) e só enfileira quando o prazo vence. O tick caiu de 10 s para 2 s: com enfileiramento por idade o tick é só amostragem, e 10 s contra um `Tr_child` de 12 s daria erro de quantização de até 83%.
 
   **Rebaixamento sob escassez de QKD.** Medido ao vivo: a primeira versão deixava a fatia sem QKD **sem rotação nenhuma** — o `continue` que evita trabalho duplicado fazia a reauth vencida bloquear o rekey de Child SA, então eMBB e mIoT paravam de renovar também o ESP. É o oposto do propósito de ter dois níveis. Agora, quando a reauth falha por poço vazio, a fatia cai para o nível barato na mesma passagem, que é o comportamento que esta seção já especificava para o C4a. Validado: com poço vazio em eMBB/mIoT, 10 e 11 rebaixamentos em 60 s, enquanto a URLLC manteve o PPK.
-- [ ] `evaluation/run_experiment.py:221-226`: no C4, iniciar o tráfego em t = 0 e disparar a rotação forçada no meio da janela, com o tráfego rodando. *(Confirmado em 14/10: hoje dorme metade da janela SEM tráfego, dispara a contenção e só então inicia o tráfego pela metade restante.)*
-- [ ] `evaluation/scenarios/scenario1_static_pqc.py`: trocar `swanctl --rekey --ike` por rekey da Child SA, no mesmo Tr\_child dos demais cenários.
-- [ ] Runner: sortear e intercalar a ordem dos cenários entre as repetições.
+- [x] `evaluation/run_experiment.py`: no C4, tráfego em t = 0 e contenção no meio da janela com o tráfego rodando. *(Feito em 17/10. A versão anterior dormia metade da janela sem tráfego, disparava a contenção num enlace OCIOSO e só então iniciava o tráfego — media o efeito da contenção sobre nada, e perdia metade da amostra de tráfego.)*
+- [x] `evaluation/scenarios/scenario1_static_pqc.py`: rekey da Child SA no `Tr_child`. *(Feito em 17/10. Era `--rekey --ike`, o caminho caro: daria ao cenário 1 uma desvantagem vinda do MECANISMO e não da política de escalonamento, que é o que ele existe para isolar. O intervalo fixo passou a ser o `Tr_child` da URLLC (12 s), importado de `rotation_driver` — uma política cega à fatia tem de adotar o prazo mais apertado, senão viola o SLA da URLLC, e comparar contra uma linha de base que já viola SLA seria atacar um espantalho.)*
+- [x] Runner: blocos aleatorizados — uma rodada por repetição, cenários sorteados dentro dela. *(Feito em 17/10. O laço anterior rodava todas as iterações de um cenário antes do próximo, o que confunde PERFEITAMENTE deriva temporal com cenário — e esta VM tem derivas reais e documentadas: o tmpfs de 12 GB que os logs enchem, a CPU do rádio ZMQ, o estado da QKDN. Flag `--no-shuffle` só para depuração.)*
 - [x] `orchestrator/kms/crypto.py`: remover o ML-KEM local; o KMS entrega a chave QKD (ETSI GS QKD 014 do QuDitto) buscada fora do caminho crítico; a chave entra no charon como PPK. *(Feito em 16/10. Novo `kms/qkd.py` com cliente ETSI 014 e poço de pré-busca por fatia; `crypto.py` reduzido a `fetch_ppk`; `KeyManagementCore.generate()` virou `provision_ppk()`, e o `key_id` passa a vir da QKDN em vez de cunhado local — é por ele que a outra ponta recupera a MESMA chave no `dec_keys`. O SMO usa `reauth_with_ppk`.)*
 
   Medido no caminho crítico, com o poço aquecido: busca **0,2 ms**, instalação do PPK 1,5 ms, reauth 8,3 ms. A pré-busca tirou os 15,4 s da simulação do caminho do rekey e deixou ~10 ms.
@@ -339,6 +339,19 @@ Esdras aceitou estes valores em 14/10; são eles que a implementação deve usar
 | mIoT | alta | média | alta | 600 s | 1800 s | 60 s | 180 s |
 
 - **Escala de tempo:** os Tr reais (Tr\_ppk = os SLAs já usados no `rotation_driver`: 300, 900 e 1800 s) não cabem em janelas de 300 s. Os testes usam fator 1/10, mantendo as razões entre fatias; o artigo precisa declarar isso.
-- **R\_qkd no C4a:** com PPK de 256 bits, a demanda escalada é 256/30 + 256/90 + 256/180 ≈ 12,8 bit/s. O C4a usa R\_qkd ≈ 8,5 bit/s (demanda ≈ 1,5× a oferta). *(Medido em 16/10: a QKDN entrega ~16,8 bit/s — ela **serializa** a geração, ~1 chave de 256 bits a cada 15,2 s, independente de quantas fatias pedem em paralelo. Ou seja há ~30% de folga sobre a demanda escalada, e a escassez do C4a precisa ser **induzida**, não acontece sozinha.)* Pela ordem I > H > D, a URLLC fica com o PPK e eMBB e mIoT passam a renovar só o ML-KEM.
+- **R\_qkd no C4a:** com PPK de 256 bits, a demanda escalada é 256/30 + 256/90 + 256/180 ≈ 12,8 bit/s. O C4a usa R\_qkd ≈ 8,5 bit/s.
+
+  **`R_qkd` medido não é uma constante da QKDN — depende da carga de CPU do hospedeiro.** A simulação BB84+Cascade é CPU-bound e disputa os mesmos 8 núcleos do testbed de rádio:
+
+  | Condição | Tempo por chave de 256 bits | `R_qkd` |
+  | --- | --- | --- |
+  | rádio ocioso (gNB/UE parados) | 15,2 s | **16,8 bit/s** |
+  | rádio rodando (condição normal de campanha, *load* ~16) | 38–39 s | **~6,6 bit/s** |
+
+  A QKDN também **serializa** a geração: pedidos concorrentes de fatias diferentes enfileiram, não paralelizam.
+
+  Consequência para o desenho: **sob condição de campanha a demanda escalada (12,8 bit/s) excede a oferta (~6,6) por quase 2×**, então a escassez de QKD acontece naturalmente e não precisa ser induzida — e o `R_qkd ≈ 8,5 bit/s` planejado para o C4a está próximo da taxa natural, não abaixo dela. O rebaixamento para "renovar só o ML-KEM" deixa de ser um caminho de exceção e passa a ser o regime comum das fatias de prazo longo.
+
+  *(Este número foi reportado errado duas vezes antes, em 16 e 17/10, por ter sido medido sem controlar a carga do hospedeiro: primeiro como "teto apertado", depois como "30% de folga". A lição de método é que qualquer medição de `R_qkd` tem de declarar se o rádio estava rodando.)* Pela ordem I > H > D, a URLLC fica com o PPK e eMBB e mIoT passam a renovar só o ML-KEM.
 - **TEID não classificado:** descartar no `mangle` e registrar no log.
 - **Perfis por fatia:** URLLC = K5 (x25519 + ML-KEM-768 + PPK) com AES-256-GCM; eMBB = K2 (ML-KEM-768) com AES-128-GCM; mIoT = K4 (ML-KEM-1024) com AES-256-GCM. Autenticação por PSK em todas.

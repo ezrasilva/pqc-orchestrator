@@ -15,8 +15,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
+import logging
+
 from kms.exceptions import KeyNotFoundError
 from kms.models import InterfaceType, KeyState, KeyStateInfo, SliceType, utcnow
+
+# Versão do schema, gravada em `PRAGMA user_version`. INCREMENTAR a cada
+# mudança incompatível de coluna — é o que dispara a recriação em
+# `_recria_se_schema_incompativel`.
+#   1: schema original, com a coluna `kem_algorithm`
+#   2: `kem_algorithm` -> `key_source` (o material passou a vir da QKD)
+_SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS keys (
@@ -76,8 +85,57 @@ class KeyStore:
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
+        self._recria_se_schema_incompativel()
         self._conn.executescript(_SCHEMA)
+        self._conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
         self._conn.commit()
+
+    def _recria_se_schema_incompativel(self) -> None:
+        """Recria as tabelas quando o arquivo existente é de um schema
+        anterior.
+
+        **Por que isto existe.** `CREATE TABLE IF NOT EXISTS` não migra:
+        um arquivo criado com o schema antigo sobrevive à mudança e
+        depois estoura na primeira leitura de coluna nova. Foi
+        exatamente o que aconteceu ao renomear `kem_algorithm` para
+        `key_source` — o banco da campanha anterior continuou no disco e
+        o Cenário 4 morreu com `IndexError: No item with that key`
+        vindo de `row["key_source"]`, a meia janela de coleta e com a
+        causa a três níveis de distância do sintoma.
+
+        **Por que recriar em vez de falhar.** O conteúdo é efêmero por
+        natureza: metadados de material de chave de uma campanha que já
+        terminou. As chaves em si vivem no charon, não aqui, e as desta
+        tabela já foram aplicadas ou revogadas. Não há nada a preservar
+        entre campanhas — e falhar deixaria o usuário tendo de apagar um
+        arquivo à mão no meio de uma execução de horas. O aviso é alto
+        de propósito, para a recriação nunca ser silenciosa.
+        """
+        atual = self._conn.execute("PRAGMA user_version").fetchone()[0]
+        if atual == _SCHEMA_VERSION:
+            return
+        tabelas = [
+            r[0] for r in self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        ]
+        if not tabelas:
+            return  # arquivo novo, nada a recriar
+        logging.getLogger(__name__).warning(
+            "banco do KMS em %s está no schema %d, esperado %d — recriando as "
+            "tabelas (conteúdo é material efêmero de campanha encerrada)",
+            self._db_path, atual, _SCHEMA_VERSION,
+        )
+        # As restrições de chave estrangeira têm de sair durante o
+        # drop: `key_secrets` referencia `keys`, então apagar numa ordem
+        # qualquer viola a FK (e depender da ordem seria frágil a cada
+        # tabela nova).
+        self._conn.execute("PRAGMA foreign_keys = OFF")
+        try:
+            for tabela in tabelas:
+                self._conn.execute(f"DROP TABLE IF EXISTS {tabela}")
+            self._conn.commit()
+        finally:
+            self._conn.execute("PRAGMA foreign_keys = ON")
 
     def close(self) -> None:
         self._conn.close()

@@ -47,10 +47,26 @@ import uuid
 from evaluation import lab_control
 from evaluation.collectors.resource import find_charon_pid
 from evaluation.instrumentation import emit
+from evaluation.rotation_driver import TR_CHILD_SECONDS
+from kms.models import SliceType
 
 NAME = "cenario1_pqc_estatico"
 
-FIXED_REKEY_INTERVAL_SECONDS = 30  # ver CENARIOS-TESTE-AVALIACAO.md seção 1
+# Intervalo único para TODO o tráfego — é isso que define o cenário
+# ("rekeying cego à fatia", ver CENARIOS-TESTE-AVALIACAO.md seção 1). O
+# documento dá "a cada 30 s" como EXEMPLO; o valor adotado é o
+# `Tr_child` da URLLC, importado de `rotation_driver` para haver uma
+# única fonte de verdade com os cenários 2/3/4.
+#
+# **Por que o prazo mais apertado e não um intermediário.** Uma política
+# cega à fatia tem de adotar o requisito mais exigente, senão viola o
+# SLA da URLLC — e comparar a proposta contra uma linha de base que já
+# viola SLA seria atacar um espantalho. Adotando 12 s, a linha de base
+# fica na sua versão MAIS FORTE: ela cumpre o prazo de todas as fatias.
+# O custo que o cenário demonstra é o outro: eMBB e mIoT pagam rekey a
+# cada 12 s quando precisariam de 30 s e 60 s, e a URLLC é atingida em
+# instantes arbitrários em vez de escolhidos.
+FIXED_REKEY_INTERVAL_SECONDS = TR_CHILD_SECONDS[SliceType.URLLC]
 # **Investigando a degradação permanente a partir da 3ª-4ª iteração numa
 # campanha longa (30 iterações)**: descartei esgotamento de recurso,
 # ARP obsoleto, política XFRM divergente e infraestrutura IPsec/kernel
@@ -138,14 +154,29 @@ _rekey_thread: "threading.Thread | None" = None
 
 
 def _rekey_loop(charon_pid: int, conn_name: str) -> None:
+    """Rekey da CHILD SA em intervalo fixo.
+
+    **Era `--rekey --ike`, que media outra coisa.** O `--ike` reautentica
+    a IKE_SA, que é o caminho CARO: a Fase A mediu de ~1,8 ms a 163 ms de
+    interrupção nele, contra ZERO perda de pacote no rekey de Child SA
+    (400 eventos, dois sentidos, 0 a 40 ms de RTT). Os cenários 2/3/4
+    rotacionam Child SA no `Tr_child` e só reautenticam no `Tr_ppk`;
+    deixar o cenário 1 reautenticando a cada intervalo daria a ele uma
+    desvantagem que não vem da política de escalonamento — que é o que o
+    cenário existe para isolar — e sim do mecanismo escolhido. A
+    comparação só é válida com o MESMO mecanismo nos quatro cenários.
+    """
     while not _rekey_thread_stop.wait(FIXED_REKEY_INTERVAL_SECONDS):
         start = time.monotonic()
-        subprocess.run(
+        resultado = subprocess.run(
             ["nsenter", f"--mount=/proc/{charon_pid}/ns/mnt", f"--net=/proc/{charon_pid}/ns/net",
-             "swanctl", "--rekey", "--ike", conn_name],
-            capture_output=True,
+             "swanctl", "--rekey", "--child", conn_name],
+            capture_output=True, text=True,
         )
-        emit("fixed_interval_rekey", connection=conn_name, duration_seconds=time.monotonic() - start)
+        emit("fixed_interval_rekey", connection=conn_name,
+             duration_seconds=time.monotonic() - start,
+             ok=resultado.returncode == 0,
+             error=(resultado.stderr or "").strip()[-200:] or None)
 
 
 _backup: dict[str, str] = {}

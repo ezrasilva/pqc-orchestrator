@@ -42,6 +42,15 @@ def find_charon_pid(netns: str) -> Optional[int]:
 # fatias são rebaixadas.
 TESTBED_PROCESS_NAMES = ("gnb", "srsue", "open5gs-upfd", "open5gs-smfd")
 
+# Subconjunto que a premissa da Fase A exclui: ela é especificada "sem
+# OCUDU nem srsUE". O Open5GS fica de fora desta lista de propósito — é
+# o núcleo, não o rádio, e não aparece entre os consumidores de CPU
+# (medido: gNB a 203%, três srsUE a ~70% cada, Open5GS ausente do topo).
+# Confundir os dois faria o aviso da Fase A disparar sempre, inclusive
+# quando a condição estivesse correta, e um aviso que sempre dispara
+# deixa de ser lido.
+RADIO_PROCESS_NAMES = ("gnb", "srsue")
+
 
 def find_pids_by_name(names: tuple[str, ...] = TESTBED_PROCESS_NAMES) -> dict[str, int]:
     """Resolve `{label: pid}` para os processos do testbed.

@@ -27,6 +27,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import re
 import secrets as pysecrets
@@ -37,7 +38,8 @@ import uuid
 from pathlib import Path
 
 from evaluation import instrumentation, lab_control
-from evaluation.collectors.resource import find_charon_pid
+from evaluation.collectors.resource import (RADIO_PROCESS_NAMES, find_charon_pid,
+                                            find_pids_by_name)
 from evaluation.instrumentation import emit
 from evaluation.phase_a import dataplane, netem, rekey_traffic, scale
 from evaluation.phase_a.profiles import ALL_PROFILES, Profile, by_name
@@ -57,6 +59,49 @@ _EXCHANGE_RE = re.compile(r"generating (IKE_SA_INIT|IKE_INTERMEDIATE|IKE_AUTH) r
 _PROPOSAL_RE = re.compile(r"selected proposal: (IKE|ESP):(\S+)")
 _ESTABLISHED_RE = re.compile(r"CHILD_SA .* established with SPIs")
 _FRAGMENT_RE = re.compile(r"EF\(\d+/\d+\)")
+
+
+def registra_carga(momento: str, **extra) -> dict:
+    """Registra a carga do hospedeiro junto de cada medição.
+
+    **Por que isto existe.** A Fase A é especificada para rodar "sem
+    OCUDU nem srsUE" (ver docs/CAMPANHA-SAPQ-IPSEC.md), e a primeira
+    execução dela, em 15/10, foi tomada com o rádio RODANDO — gNB mais
+    três srsUE consumindo ~5 dos 8 núcleos. Isso passou sem ser notado
+    porque nada registrava a carga.
+
+    O efeito medido ao comparar as duas condições é de 2 a 3×:
+
+    | Medição | sem registro de carga (15/10) | com load ~18 |
+    | --- | --- | --- |
+    | ML-KEM-768 keygen | 21,9 µs | 63,4 µs |
+    | handshake K2 (p50) | 29,8 ms | 64,2 ms |
+
+    E a 18 de load o ML-KEM-1024 mede mais RÁPIDO que o 768, o que é
+    fisicamente impossível — ruído de escalonamento dominando o sinal.
+
+    Registrar não corrige a medição; corrige a possibilidade de
+    confiar nela depois. Qualquer execução da Fase A agora carrega a
+    condição em que foi tomada.
+    """
+    try:
+        load1, load5, load15 = os.getloadavg()
+    except OSError:
+        load1 = load5 = load15 = float("nan")
+    radio = find_pids_by_name(RADIO_PROCESS_NAMES)
+    dados = dict(
+        moment=momento,
+        load_1min=load1, load_5min=load5, load_15min=load15,
+        cpu_count=os.cpu_count(),
+        # A premissa da Fase A é que estes não estejam rodando. Guardar
+        # a lista, e não só um booleano, permite saber DEPOIS o que
+        # estava de pé numa execução já colhida.
+        radio_processes=sorted(radio),
+        radio_running=bool(radio),
+        **extra,
+    )
+    emit("phase_a_host_load", **dados)
+    return dados
 
 
 def _conn_conf(profile: Profile, local_addr: str, remote_addr: str,
@@ -603,6 +648,13 @@ def main() -> int:
     else:
         mbb_values = [args.make_before_break == "yes"]
 
+    carga = registra_carga("inicio")
+    if carga["radio_running"]:
+        print(f"AVISO: o rádio está rodando ({', '.join(carga['radio_processes'])}) e a "
+              f"Fase A é especificada SEM ele. Load {carga['load_1min']:.1f} em "
+              f"{carga['cpu_count']} núcleos. As medições absolutas ficarão infladas "
+              f"em 2-3× — pare o rádio antes de colher resultados.")
+
     backup = backup_lab_config()
     try:
         for rtt in rtts:
@@ -613,6 +665,7 @@ def main() -> int:
             measured = netem.measured_rtt_ms()
             print(f"\n### RTT: netem {rtt} ms/sentido -> medido {measured} ms de RTT")
             emit("phase_a_rtt_axis", netem_delay_ms=rtt, measured_rtt_ms=measured)
+            registra_carga("ponto_de_rtt", netem_delay_ms=rtt)
 
             if args.measurement == "dataplane":
                 # Antes dos perfis, e dentro do mesmo ponto de RTT: a

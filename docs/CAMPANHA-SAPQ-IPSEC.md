@@ -84,6 +84,24 @@ A Fase A mede o custo de cada perfil no próprio enlace N3, entre os namespaces 
 5. **Microbenchmark de KEM:** keygen, encaps e decaps de todos os KEMs do catálogo via liboqs, para os que o strongSwan não suportar.
 6. **RTT do enlace como eixo:** repetir A.1 e A.2 com latência artificial no caminho N3 (`tc qdisc ... netem delay`), em pelo menos 0 ms (bancada pura), 5 ms e 20 ms por sentido.
 
+### Nota de método: a carga do hospedeiro tem de ser registrada
+
+A Fase A é especificada para rodar **sem OCUDU nem srsUE**, e a primeira execução dela não respeitou isso — o rádio ficou rodando, consumindo ~5 dos 8 núcleos, e nada registrava a condição. Medido depois, comparando as duas condições:
+
+| Medição | com rádio | sem rádio | Desvio |
+| --- | --- | --- | --- |
+| A.5, ML-KEM-512/768/1024 | — | idêntico a 0,1 µs | **0%** |
+| A.1, handshake K0/K2/K3 (p50) | 29,2 / 29,8 / 31,2 ms | 24,8 / 25,0 / 25,9 ms | ~17%, **constante** |
+| A.3, AES-256 contra AES-128 | −9,2% | **−1,4%** | inverte a decisão |
+
+O que isso diz, por medição:
+
+* **A.5 não foi afetada.** O microbenchmark reproduz exatamente, o que mostra que a execução de 15/10 estava sob carga moderada, não severa. (Num momento de `load` 18 medido em 17/10, o mesmo benchmark inflou 3× e chegou a dar ML-KEM-1024 mais rápido que o 768 — fisicamente impossível, e um bom indicador de condições inutilizáveis.)
+* **A.1 levou um deslocamento constante de ~17%**, que cancela nas conclusões estruturais: o custo por RTT continua valendo exatamente o número de trocas de cada perfil, porque isso é uma diferença.
+* **A.3 foi a única a mudar uma decisão**, porque vazão é limitada por CPU e o gap entre as cifras era do mesmo tamanho do artefato.
+
+`bench_n3.py` passou a registrar `load`, contagem de núcleos e quais processos de rádio estão de pé a cada execução e a cada ponto de RTT, e a **avisar em voz alta** quando a premissa é violada. Registrar não corrige a medição; corrige a possibilidade de confiar nela depois.
+
 ### Resultados da Fase A (15/10): a tabela que alimenta a Fase B
 
 Execuções completas, sem falha: A.1 540/540 handshakes, A.2 560 eventos, A.3 4 pontos, A.4 90 rodadas, A.5 41 KEMs.
@@ -146,16 +164,20 @@ Duas lições de método que ficam registradas porque custaram tempo:
 1. **No iperf3, a perda só existe no relatório do RECEPTOR.** No UDP ela é calculada por quem recebe; o emissor só sabe o que enviou. Inverter o sentido com `-R` mantém o servidor como emissor e move a perda para o relatório do cliente — ler o campo do servidor nesse modo devolve ausência de informação, que é fácil confundir com ausência de perda. A sonda passou a escolher o sentido trocando quem é servidor e quem é cliente, com o servidor sempre no papel de receptor.
 2. **Divergência entre dois instrumentos é informação, não ruído.** A tentação era declarar o ping pouco confiável (e eu cheguei a atribuir a diferença a travamento do processo de sonda, o que era falso). O ping estava certo; o erro era o sentido medido.
 
-**A.3 — resolve a decisão AES-128 × AES-256.** 30 s, 4 fluxos TCP, ordem sorteada:
+**A.3 — resolve a decisão AES-128 × AES-256.** 25–30 s, 4 fluxos TCP, ordem sorteada, **com o rádio parado e a carga registrada** (`load_1min` entre 0,37 e 2,5):
 
-| Perfil | Vazão | % do bruto | RTT sob carga p50/p95/p99 (ms) | softirq |
+| Perfil | Vazão (média de 3) | Variação interna | RTT sob carga p50/p95/p99 (ms) | softirq |
 | --- | --- | --- | --- | --- |
-| sem IPsec | 15196,6 Mbps | 100,0% | 0,022 / 0,042 / 0,096 | 31,4% |
-| ESP-AES128GCM | 2649,0 Mbps | 17,4% | 0,039 / 0,066 / 0,108 | 36,4% |
-| ESP-AES256GCM | 2405,3 Mbps | 15,8% | 0,040 / 0,060 / 0,096 | 35,9% |
-| ESP-CHACHA20 | 1908,3 Mbps | 12,6% | 0,043 / 0,077 / 0,111 | 34,8% |
+| sem IPsec | 14843,8 Mbps | 5,6% | 0,019 / 0,030 / 0,044 | 32,3% |
+| ESP-AES128GCM | **2706,7 Mbps** | 2,0% | 0,040 / 0,084 / 0,230 | 36,9% |
+| ESP-AES256GCM | **2669,3 Mbps** | 0,4% | 0,040 / 0,084 / 0,210 | 36,7% |
+| ESP-CHACHA20 | 2116,8 Mbps | — | 0,045 / 0,089 / 0,144 | 36,8% |
 
-**Decisão: AES-256-GCM para a URLLC.** Custa 9,2% de vazão contra o AES-128 e **nenhuma latência mensurável** (p99 de 0,096 contra 0,108 ms — o AES-256 fica até marginalmente melhor, dentro do ruído). A URLLC é limitada por latência, não por vazão, então o nível de segurança maior sai de graça no que importa para ela. O ChaCha20 fica 28% abaixo do AES-128, consistente com não haver AES-NI para ele — só se justifica em hardware sem aceleração de AES.
+**Decisão: AES-256-GCM nas TRÊS fatias.** A diferença de vazão contra o AES-128 é de **1,4%**, que cabe dentro da variação entre execuções do próprio AES-128 (2,0%) — são estatisticamente indistinguíveis. E a latência também: p99 de 0,210 contra 0,230 ms, com o AES-256 marginalmente melhor. Não há eixo em que o AES-128 compense.
+
+O ChaCha20 fica 21,8% abaixo, consistente com não haver AES-NI para ele; só se justifica em hardware sem aceleração de AES.
+
+> **Correção de uma medição anterior.** A primeira execução da A.3 (15/10) mediu o AES-256 **9,2% abaixo** do AES-128 e essa diferença foi usada para escolher AES-128 na eMBB, alegando que ela é limitada por vazão. O gap era **artefato de contenção de CPU**: aquela execução foi tomada com o rádio rodando, e a Fase A é especificada para rodar sem ele. Com o rádio parado o gap cai para 1,4%, dentro do ruído, e a eMBB passou a AES-256 como as outras. O `connections.conf` e o catálogo de perfis foram corrigidos.
 
 **A.4 — o custo de rekey simultâneo é sublinear.** K2, 10 rodadas por ponto, todas com 100% de sucesso:
 
@@ -347,7 +369,7 @@ Estas respostas fixam os números da tabela de perfis e o escopo da Fase A.
   - **A pilha precisa de BB84 + Cascade, não BB84 sozinho.** Medido: o BB84 cru do SeQUeNCe devolve chaves que DIFEREM entre as pontas (QBER real do canal — 3 bits divergentes em 128, a 20 km). Como o PPK tem de ser idêntico nos dois lados, sem a reconciliação do Cascade o IKE falharia na autenticação. Com Cascade, as chaves batem (validado com 256 bits, o tamanho do PPK da campanha; QBER ~1,4%).
   - **Custo de entrega da chave, medido pela API ETSI 014 e não só pelo protocolo:** `enc_keys` (lado master, dispara a simulação) **~15,4 s**; `dec_keys` (lado slave, chave já distribuída) **~1,1 s**. O custo é dominado pela reconciliação, não pelo tamanho — 128 e 256 bits custam praticamente o mesmo. Isso reforça a decisão de buscar o PPK fora do caminho crítico do rekey: o `Tr_ppk` da URLLC em escala de teste é 30 s, então a pré-busca tem de ser assíncrona de verdade, não um `fetch` síncrono antes do reauth. **Somado ao resultado da A.2** — a renovação de PPK exige reauth, e com `make_before_break = yes` a reauth não interrompe tráfego —, o desenho fica fechado: busca assíncrona do PPK, reauth com make-before-break.
 - [x] **TEID não classificado:** decidido em 14/10, descartar e registrar no log.
-- [x] **AES-128 na URLLC:** decidido pela A.3 (15/10) — **AES-256-GCM**, que era a intuição registrada aqui e a medição confirma. Custa 9,2% de vazão contra o AES-128 (2405 contra 2649 Mbps) e **nenhuma latência mensurável** (p99 sob carga de 0,096 contra 0,108 ms — o AES-256 fica até marginalmente melhor, dentro do ruído). A URLLC é limitada por latência, não por vazão, então o nível de segurança maior sai de graça no que importa para ela. Ver "Resultados da Fase A".
+- [x] **AES-128 na URLLC:** decidido pela A.3 — **AES-256-GCM**, e nas três fatias, não só na URLLC. Com o rádio parado (condição que a Fase A especifica) a diferença de vazão contra o AES-128 é de 1,4%, dentro da variação entre execuções, e a latência é indistinguível. A medição de 15/10, que dava 9,2% a favor do AES-128, estava contaminada por contenção de CPU. Ver "Resultados da Fase A".
 
 ## Valores fixados (14/10)
 
@@ -375,4 +397,4 @@ Esdras aceitou estes valores em 14/10; são eles que a implementação deve usar
 
   *(Este número foi reportado errado duas vezes antes, em 16 e 17/10, por ter sido medido sem controlar a carga do hospedeiro: primeiro como "teto apertado", depois como "30% de folga". A lição de método é que qualquer medição de `R_qkd` tem de declarar se o rádio estava rodando.)* Pela ordem I > H > D, a URLLC fica com o PPK e eMBB e mIoT passam a renovar só o ML-KEM.
 - **TEID não classificado:** descartar no `mangle` e registrar no log.
-- **Perfis por fatia:** URLLC = K5 (x25519 + ML-KEM-768 + PPK) com AES-256-GCM; eMBB = K2 (ML-KEM-768) com AES-128-GCM; mIoT = K4 (ML-KEM-1024) com AES-256-GCM. Autenticação por PSK em todas.
+- **Perfis por fatia:** URLLC = K5 (x25519 + ML-KEM-768 + PPK) com AES-256-GCM; eMBB = K2 (ML-KEM-768) com **AES-256-GCM**; mIoT = K4 (ML-KEM-1024) com AES-256-GCM. Autenticação por PSK em todas. *(A eMBB era AES-128 até 17/10, por um gap de vazão de 9,2% que se revelou artefato de contenção de CPU — ver a correção na A.3.)*

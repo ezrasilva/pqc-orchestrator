@@ -163,3 +163,59 @@ def test_audit_log_filters_by_slice(smo, scheduler_core):
     urllc_events = smo.list_audit_log(slice=SliceType.URLLC)
     assert len(urllc_events) == 1
     assert urllc_events[0].slice is SliceType.URLLC
+
+
+# --- os dois níveis de rotação -----------------------------------------
+# A separação existe porque a Fase A mediu três ordens de grandeza entre
+# eles: rekey de Child SA sem perda de pacote, reauth de ~1,8 a 163 ms.
+
+def _enfileira_tipo(scheduler_core, task_type, slice=SchedSliceType.URLLC):
+    from scheduler.models import EnqueueTaskRequest, InterfaceType, TaskPriority
+    scheduler_core.enqueue_task(
+        EnqueueTaskRequest(
+            slice=slice, interface=InterfaceType.N3, task_type=task_type,
+            priority=TaskPriority.NORMAL, slack_seconds=-1.0,
+            estimated_cost_seconds=0.01, reason="teste",
+        )
+    )
+
+
+def test_rekey_child_nao_consome_chave_de_qkd(smo, scheduler_core, fake_ipsec_agent,
+                                              ppk_provider):
+    """O caminho barato não passa pelo KMS: não há segredo novo para
+    provisionar, e gastar uma chave de QKD a cada Tr_child era
+    exatamente o defeito da versão com um único TaskType.ROTATE."""
+    from scheduler.models import TaskType
+    antes = ppk_provider.depth(SliceType.URLLC)
+    _enfileira_tipo(scheduler_core, TaskType.REKEY_CHILD)
+    r = smo.process_next_task()
+    assert r.success
+    assert fake_ipsec_agent.rekey_child_calls, "deveria ter chamado rekey_child"
+    assert not fake_ipsec_agent.reauth_calls, "não deveria reautenticar"
+    assert ppk_provider.depth(SliceType.URLLC) == antes, "não deveria gastar QKD"
+    # Sem chave nova, não há key_id para reportar.
+    assert r.key_id == ""
+
+
+def test_reauth_ppk_consome_chave_de_qkd(smo, scheduler_core, fake_ipsec_agent,
+                                         ppk_provider):
+    from scheduler.models import TaskType
+    antes = ppk_provider.depth(SliceType.URLLC)
+    _enfileira_tipo(scheduler_core, TaskType.REAUTH_PPK)
+    r = smo.process_next_task()
+    assert r.success
+    assert fake_ipsec_agent.reauth_calls, "deveria ter reautenticado"
+    assert not fake_ipsec_agent.rekey_child_calls
+    assert ppk_provider.depth(SliceType.URLLC) == antes - 1, "deveria gastar uma chave"
+    assert r.key_id
+
+
+def test_reauth_sem_qkd_adia_em_vez_de_degradar(smo_sem_qkd, scheduler_core):
+    """Poço vazio adia a rotação. Degradar para "rotaciona sem PPK" não
+    é opção: com `ppk_required = yes` nas três fatias o charon não
+    negocia isso."""
+    from scheduler.models import TaskType
+    _enfileira_tipo(scheduler_core, TaskType.REAUTH_PPK)
+    r = smo_sem_qkd.process_next_task()
+    assert r.task_found and not r.success
+    assert "escassez de QKD" in r.error_message

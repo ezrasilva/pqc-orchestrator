@@ -287,7 +287,9 @@ A decomposição do rekey fica: decisão do escalonador → obtenção do PPK �
 
 Os itens abaixo são do repositório ezrasilva/pqc-orchestrator (commit a3ba1d6). Os quatro primeiros corrigem defeitos da campanha de 12–13/10; os demais implementam a nova arquitetura.
 
-- [ ] `evaluation/rotation_driver.py`: enfileirar uma fatia só quando a idade da SA passar do seu Tr, com dois tipos de tarefa (rekey de Child SA e reauth com PPK). Hoje as três fatias são enfileiradas a cada tick de 10 s. *(Confirmado no código em 14/10: o `_tick()` enfileira as três incondicionalmente; a idade entra só como `slack_seconds` no cálculo de risco.)*
+- [x] `evaluation/rotation_driver.py`: enfileirar por idade, com dois tipos de tarefa. *(Feito em 17/10.)* `TaskType.REKEY_CHILD` e `TaskType.REAUTH_PPK` novos; o driver lê **duas** idades por fatia (a da Child SA governa o `Tr_child`, a da IKE_SA governa o `Tr_ppk` — linhas diferentes do `swanctl`) e só enfileira quando o prazo vence. O tick caiu de 10 s para 2 s: com enfileiramento por idade o tick é só amostragem, e 10 s contra um `Tr_child` de 12 s daria erro de quantização de até 83%.
+
+  **Rebaixamento sob escassez de QKD.** Medido ao vivo: a primeira versão deixava a fatia sem QKD **sem rotação nenhuma** — o `continue` que evita trabalho duplicado fazia a reauth vencida bloquear o rekey de Child SA, então eMBB e mIoT paravam de renovar também o ESP. É o oposto do propósito de ter dois níveis. Agora, quando a reauth falha por poço vazio, a fatia cai para o nível barato na mesma passagem, que é o comportamento que esta seção já especificava para o C4a. Validado: com poço vazio em eMBB/mIoT, 10 e 11 rebaixamentos em 60 s, enquanto a URLLC manteve o PPK.
 - [ ] `evaluation/run_experiment.py:221-226`: no C4, iniciar o tráfego em t = 0 e disparar a rotação forçada no meio da janela, com o tráfego rodando. *(Confirmado em 14/10: hoje dorme metade da janela SEM tráfego, dispara a contenção e só então inicia o tráfego pela metade restante.)*
 - [ ] `evaluation/scenarios/scenario1_static_pqc.py`: trocar `swanctl --rekey --ike` por rekey da Child SA, no mesmo Tr\_child dos demais cenários.
 - [ ] Runner: sortear e intercalar a ordem dos cenários entre as repetições.
@@ -337,6 +339,6 @@ Esdras aceitou estes valores em 14/10; são eles que a implementação deve usar
 | mIoT | alta | média | alta | 600 s | 1800 s | 60 s | 180 s |
 
 - **Escala de tempo:** os Tr reais (Tr\_ppk = os SLAs já usados no `rotation_driver`: 300, 900 e 1800 s) não cabem em janelas de 300 s. Os testes usam fator 1/10, mantendo as razões entre fatias; o artigo precisa declarar isso.
-- **R\_qkd no C4a:** com PPK de 256 bits, a demanda escalada é 256/30 + 256/90 + 256/180 ≈ 12,8 bit/s. O C4a usa R\_qkd ≈ 8,5 bit/s (demanda ≈ 1,5× a oferta). Pela ordem I > H > D, a URLLC fica com o PPK e eMBB e mIoT passam a renovar só o ML-KEM.
+- **R\_qkd no C4a:** com PPK de 256 bits, a demanda escalada é 256/30 + 256/90 + 256/180 ≈ 12,8 bit/s. O C4a usa R\_qkd ≈ 8,5 bit/s (demanda ≈ 1,5× a oferta). *(Medido em 16/10: a QKDN entrega ~16,8 bit/s — ela **serializa** a geração, ~1 chave de 256 bits a cada 15,2 s, independente de quantas fatias pedem em paralelo. Ou seja há ~30% de folga sobre a demanda escalada, e a escassez do C4a precisa ser **induzida**, não acontece sozinha.)* Pela ordem I > H > D, a URLLC fica com o PPK e eMBB e mIoT passam a renovar só o ML-KEM.
 - **TEID não classificado:** descartar no `mangle` e registrar no log.
 - **Perfis por fatia:** URLLC = K5 (x25519 + ML-KEM-768 + PPK) com AES-256-GCM; eMBB = K2 (ML-KEM-768) com AES-128-GCM; mIoT = K4 (ML-KEM-1024) com AES-256-GCM. Autenticação por PSK em todas.

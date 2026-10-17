@@ -134,6 +134,31 @@ class SmoCore:
                 slice=slice, interface=interface, error_message=str(exc),
             )
 
+        if task.task_type is TaskType.REKEY_CHILD:
+            # Caminho BARATO. Não passa pelo KMS: o rekey de Child SA não
+            # consome segredo novo nenhum — o material do ESP é derivado
+            # pelo próprio IKE, com um ML-KEM novo a cada vez (verificado
+            # ao vivo: a Child SA volta com `KE1_ML_KEM_768`). Logo não há
+            # chave para provisionar, ativar ou revogar, e a chave ACTIVE
+            # anterior continua válida: o PPK dela é herdado pelo SK_d.
+            #
+            # Tratá-lo como uma rotação de chave (o que a versão anterior
+            # fazia, com um único TaskType.ROTATE) gastaria uma chave de
+            # QKD a cada Tr_child e pagaria o reauth — três ordens de
+            # grandeza de custo a mais, pela medição da Fase A.
+            rekey_result = self._ipsec_agent.rekey_child(connection)
+            self._audit(
+                task.task_type.value.lower(), slice=slice, interface=interface,
+                key_id="", actor=actor,
+                detail=f"conexão={connection.value} task={task.task_id}",
+                success=rekey_result.success,
+            )
+            return ProcessTaskResult(
+                task_found=True, success=rekey_result.success, task_id=task.task_id,
+                slice=slice, interface=interface,
+                error_message=rekey_result.error_message,
+            )
+
         old_active = self._kms.get_active_key(slice, interface)
         if old_active is not None:
             self._kms.mark_renewing(old_active.key_id, f"substituída pela task {task.task_id}")

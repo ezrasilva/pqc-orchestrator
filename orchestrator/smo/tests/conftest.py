@@ -94,3 +94,10 @@ def live_smo(kms_core, scheduler_core, ppk_provider):
     """Mesmo KMS/Scheduler isolados de cima, mas o IPsec Agent de
     verdade — só usado pelos testes `requires_live_lab`."""
     return SmoCore(kms_core, scheduler_core, IpsecAgentCore(), ppk_provider)
+
+
+@pytest.fixture
+def smo_sem_qkd(kms_core, scheduler_core, fake_ipsec_agent, ppk_provider_vazio):
+    """SMO com o poço de PPK vazio, para exercitar o caminho de escassez
+    de QKD sem esperar a QKDN real."""
+    return SmoCore(kms_core, scheduler_core, fake_ipsec_agent, ppk_provider_vazio)

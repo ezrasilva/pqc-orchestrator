@@ -32,6 +32,16 @@ class InterfaceType(enum.Enum):
 
 
 class TaskType(enum.Enum):
+    # Os dois níveis de rotação da arquitetura SAPQ-IPsec. A separação
+    # existe porque a Fase A mediu três ordens de grandeza de diferença
+    # entre eles: o rekey de Child SA não perde um único pacote (400
+    # eventos, dois sentidos, 0 a 40 ms de RTT), enquanto a reauth custa
+    # de ~1,8 ms a 163 ms de interrupção. Tratar os dois como uma única
+    # ROTATE joga fora a rotação que sai de graça.
+    REKEY_CHILD = "REKEY_CHILD"   # a cada Tr_child; rederiva ESP, não consome QKD
+    REAUTH_PPK = "REAUTH_PPK"     # a cada Tr_ppk; PPK novo, consome k bits de QKD
+    # Caminho legado: rotacionava PSK e PPK juntos e sempre pagava o
+    # reauth. Mantido porque a campanha de 12-15/10 foi colhida com ele.
     ROTATE = "ROTATE"
     REVOKE = "REVOKE"
 

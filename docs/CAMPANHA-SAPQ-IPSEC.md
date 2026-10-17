@@ -322,7 +322,13 @@ Os itens abaixo são do repositório ezrasilva/pqc-orchestrator (commit a3ba1d6)
   A borda instala a SA de saída **1,4 ms antes** de a CU terminar de instalar a de entrada correspondente; nessa janela ela transmite numa SA que a CU ainda não aceita. É a perda de ~1,8 ms que a A.2 mediu no sentido responder → initiator, agora com a causa visível em vez de inferida. No sentido oposto o monitor mostra a SA nova entrando **417 µs antes** de a velha sair — sobreposição, não lacuna —, o que explica os zero pacotes perdidos na ida.
 
   Filtrar ruído era essencial: numa janela de 30 s o monitor emitiu **1169 `replay update` contra 13 eventos úteis** por lado. Os descartados são contados e reportados em agregado, para a filtragem ser auditável.
-- [ ] Coletores novos: ping e iperf3 direto no N3 (namespace da CU → namespace do UPF), CPU de OCUDU, UPF e softirq.
+- [x] Coletores novos: sonda direto no N3, CPU do testbed e softirq. *(Feito em 17/10.)*
+
+  `evaluation/collectors/n3_probe.py` sonda o túnel N3 a 100 Hz **em paralelo** às sondas que atravessam o rádio — as duas respondem perguntas diferentes: a do rádio diz se o usuário sente a rotação, a do N3 diz se e por quanto o túnel foi interrompido. Medido numa execução de 30 s: RTT p50 de **0,051 ms** com máximo de **1,560 ms** (pico de 30×), que é a escala da interrupção de rotação. Pelo rádio, com RTT de ~57 ms, isso é invisível. A sonda usa 100 Hz e não o 1 kHz da Fase A porque roda a janela inteira: a 1 kHz seriam 300 mil eventos por execução.
+
+  `SoftirqPoller` existe porque o ESP cifra em contexto de **softirq**, no kernel — nenhum processo de userspace é creditado por isso, então o `pidstat` não o vê. `find_pids_by_name` traz `gnb`, os três `srsue`, `open5gs-upfd` e `open5gs-smfd` para o mesmo `pidstat`, porque eles competem por CPU com a simulação de QKD e determinam em que ponto da faixa de `R_qkd` (6,6 a 16,8 bit/s) a execução estava.
+
+  Primeira execução instrumentada já mostrou **`idle` de 10,9%**: a máquina está quase saturada durante uma coleta, o que confirma pela medição a causa da degradação do `R_qkd` e passa a ficar registrado por execução em vez de inferido.
 - [x] Script da Fase A: roda cada perfil no N3 sem o testbed de rádio. *(Completo em 15/10: `evaluation/phase_a/` com as seis medições — `profiles.py`, `bench_n3.py` (A.1/A.2/A.3/A.4), `rekey_traffic.py`, `dataplane.py`, `scale.py`, `kem_bench.py` (A.5) e `netem.py` (A.6).)*
 - [x] Fase A: eixo de RTT com `netem` (A.6). *(Feito em 15/10: `phase_a/netem.py`; validado em 0/5/20 ms por sentido → 0,03 / 10,09 / 40,08 ms de RTT medido.)*
 

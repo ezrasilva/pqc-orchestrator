@@ -28,6 +28,89 @@ def find_charon_pid(netns: str) -> Optional[int]:
     return None
 
 
+# Processos do testbed que competem por CPU com o orquestrador e com a
+# simulação de QKD. Casados por nome porque eles são iniciados fora do
+# experimento (pelo watchdog do laboratório), então o PID muda entre
+# campanhas e não dá para configurar à mão.
+#
+# **Por que medir estes.** A simulação BB84+Cascade da QKDN é CPU-bound e
+# disputa os mesmos 8 núcleos: medido, a chave de 256 bits passa de
+# 15,2 s com o rádio parado para 38-39 s com ele rodando, o que derruba
+# o R_qkd de 16,8 para ~6,6 bit/s. Sem registrar a CPU destes processos
+# junto de cada execução, não há como saber em que ponto dessa faixa a
+# execução estava — e a razão demanda/oferta de QKD determina quais
+# fatias são rebaixadas.
+TESTBED_PROCESS_NAMES = ("gnb", "srsue", "open5gs-upfd", "open5gs-smfd")
+
+
+def find_pids_by_name(names: tuple[str, ...] = TESTBED_PROCESS_NAMES) -> dict[str, int]:
+    """Resolve `{label: pid}` para os processos do testbed.
+
+    Quando há mais de um processo com o mesmo nome (três `srsue`, um por
+    fatia), o label recebe sufixo numérico — `srsue`, `srsue-2`,
+    `srsue-3` — na ordem de PID, que é estável dentro de uma campanha.
+    Agregar os três numa só linha esconderia uma UE consumindo o dobro
+    das outras, que é informação útil quando o rádio satura.
+    """
+    encontrados: dict[str, int] = {}
+    for nome in names:
+        saida = subprocess.run(["pgrep", "-x", nome], capture_output=True, text=True).stdout
+        pids = sorted(int(p) for p in saida.split() if p.isdigit())
+        for i, pid in enumerate(pids, start=1):
+            label = nome if i == 1 else f"{nome}-{i}"
+            encontrados[label] = pid
+    return encontrados
+
+
+class SoftirqPoller:
+    """Amostra os contadores de CPU de `/proc/stat`, com foco em softirq.
+
+    **Por que softirq precisa de um coletor próprio.** A cifragem do ESP
+    roda no kernel, em contexto de softirq, disparada pela pilha de rede
+    — nenhum processo de userspace é creditado por ela, então o
+    `pidstat` do `ResourcePoller` não a vê. Medido na A.3: o softirq
+    sobe de 31,4% sem IPsec para 36,4% com AES-128-GCM saturando o N3.
+
+    `/proc/stat` é global do hospedeiro, não por netns. Isso é aceitável
+    porque o `idle` vai junto no evento, o que permite checar depois se a
+    premissa de "o resto da máquina estava quieto" valia naquela
+    execução — premissa que, nesta VM, já se mostrou falsa (load 16 em 8
+    núcleos com o rádio rodando).
+    """
+
+    def __init__(self, interval_seconds: float = 1.0):
+        self._interval = interval_seconds
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def _loop(self) -> None:
+        from evaluation.phase_a.dataplane import read_softirq_jiffies
+
+        anterior = read_softirq_jiffies()
+        while not self._stop.wait(self._interval):
+            atual = read_softirq_jiffies()
+            delta = {k: atual[k] - anterior[k] for k in anterior}
+            total = sum(delta.values())
+            anterior = atual
+            if total <= 0:
+                continue
+            # Percentual do intervalo, não jiffies acumulados: é o que se
+            # compara entre execuções de duração diferente.
+            emit("cpu_softirq_snapshot",
+                 **{f"{k}_percent": 100.0 * v / total for k, v in delta.items()},
+                 total_jiffies=total)
+
+    def start(self) -> None:
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self._interval + 2)
+
+
 class ResourcePoller:
     """`pids` é um dict `{label: pid}` — o label vira o campo `process`
     no evento emitido, pra diferenciar "charon" de "experiment" (o

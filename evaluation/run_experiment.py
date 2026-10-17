@@ -29,7 +29,8 @@ from pathlib import Path
 
 from evaluation import instrumentation, lab_control
 from evaluation.collectors.classification_stats import ClassificationStatsPoller
-from evaluation.collectors.resource import ResourcePoller, find_charon_pid
+from evaluation.collectors.n3_probe import N3LatencyProbe
+from evaluation.collectors.resource import ResourcePoller, SoftirqPoller, find_pids_by_name, find_charon_pid
 from evaluation.collectors.traffic import run_latency_probe, run_throughput_probe
 from evaluation.collectors.xfrm_monitor import XfrmMonitor
 from evaluation.collectors.xfrm_state import XfrmStatePoller
@@ -247,6 +248,7 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
     smo = scheduler = store = ppk_provider = None
     rotation_driver = None
     xfrm_poller = classification_poller = resource_poller = None
+    softirq_poller = n3_probe = None
     xfrm_monitors: list = []
 
     try:
@@ -263,6 +265,11 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         pids = {"experiment": __import__("os").getpid()}
         if charon_pid is not None:
             pids["charon"] = charon_pid
+        # Os processos do testbed entram no mesmo `pidstat`: eles
+        # competem por CPU com o orquestrador E com a simulação de QKD,
+        # e sem registrá-los não há como saber em que ponto da faixa de
+        # R_qkd (6,6 a 16,8 bit/s, conforme a carga) a execução estava.
+        pids.update(find_pids_by_name())
 
         # **Achado real investigando o gap de isolamento (B.3)**: testei
         # tcpdump real (contagem na rede) contra o `iptables` e a SA
@@ -295,6 +302,14 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         xfrm_monitors = [XfrmMonitor(ns) for ns in ("cu-ns", "5gc-edge-ns")]
         classification_poller = ClassificationStatsPoller("cu-ns", interval_seconds=0.5)
         resource_poller = ResourcePoller(pids, interval_seconds=1)
+        # O ESP cifra em contexto de softirq, no kernel: nenhum processo
+        # é creditado por isso, então o pidstat acima não o vê.
+        softirq_poller = SoftirqPoller(interval_seconds=1.0)
+        # Sonda de alta resolução direto no N3, em paralelo às sondas que
+        # atravessam o rádio. O rádio tem RTT de ~57 ms e afogaria a
+        # interrupção de ~1,8 ms que a rotação causa; o N3 direto tem
+        # ~0,1 ms. Ver evaluation/collectors/n3_probe.py.
+        n3_probe = N3LatencyProbe(interval_seconds=0.01)
 
         print(f"[{run_id}] warm-up ({warmup_seconds}s, descartado da análise)...")
         time.sleep(warmup_seconds)
@@ -304,6 +319,8 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
             m.start()
         classification_poller.start()
         resource_poller.start()
+        softirq_poller.start()
+        n3_probe.start()
         if rotation_driver is not None:
             rotation_driver.start()
 
@@ -370,6 +387,10 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
             classification_poller.stop()
         if resource_poller is not None:
             resource_poller.stop()
+        if softirq_poller is not None:
+            softirq_poller.stop()
+        if n3_probe is not None:
+            n3_probe.stop()
         if rotation_driver is not None:
             rotation_driver.stop()
         if ppk_provider is not None:

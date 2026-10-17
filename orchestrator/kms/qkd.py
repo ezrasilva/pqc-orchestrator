@@ -41,6 +41,7 @@ import base64
 import json
 import logging
 import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -151,7 +152,9 @@ class PpkProvider:
     """
 
     def __init__(self, client: Qkd014Client, slave_sae_id: str,
-                 slices: tuple[SliceType, ...], depth: int = 3):
+                 slices: tuple[SliceType, ...], depth: int = 3,
+                 r_qkd_bits_per_second: float | None = None,
+                 key_bits: int = PPK_BITS):
         # Chaveado por `SliceType`, não por string: a primeira versão
         # usava string e o chamador criava o poço com "urllc" enquanto
         # `SliceType.URLLC.value` é "URLLC" — KeyError em tempo de
@@ -165,6 +168,29 @@ class PpkProvider:
         self._threads: dict[SliceType, threading.Thread] = {}
         self._stop = threading.Event()
 
+        # Limitador de taxa AGREGADO, modelando uma fonte de QKD única
+        # com taxa `R_qkd` compartilhada entre as fatias.
+        #
+        # **Por que declarar R_qkd em vez de herdá-lo da simulação.**
+        # Medido: o tempo por chave depende da carga do hospedeiro
+        # (15,2 s com o rádio parado contra 38-39 s com ele rodando) e do
+        # backend de reconciliação (~6,2 s com o Cascade modelado). Com
+        # R_qkd herdado, a razão demanda/oferta — que é o que decide
+        # quais fatias são rebaixadas — vira variável não controlada, e
+        # duas execuções do mesmo cenário medem coisas diferentes. O
+        # desenho do C4a já pedia um valor controlado (~8,5 bit/s);
+        # declarar aqui é o que torna isso reproduzível.
+        #
+        # **Por que agregado e não por fatia.** O modelo da campanha é
+        # `Σ k / Tr_ppk,i ≤ R_qkd`: uma fonte, várias fatias disputando.
+        # Um limitador por thread daria três vezes a taxa e eliminaria
+        # justamente a disputa que o C4a quer medir.
+        self._key_bits = key_bits
+        self._intervalo_minimo = (
+            key_bits / r_qkd_bits_per_second if r_qkd_bits_per_second else 0.0)
+        self._pacer_lock = threading.Lock()
+        self._proxima_liberacao = 0.0
+
     def start(self) -> None:
         for fatia in self._pools:
             t = threading.Thread(target=self._repor, args=(fatia,),
@@ -175,8 +201,32 @@ class PpkProvider:
     def stop(self) -> None:
         self._stop.set()
 
-    def _repor(self, fatia: str) -> None:
+    def _aguarda_vez(self) -> None:
+        """Serializa e espaça os pedidos conforme `R_qkd`.
+
+        A espera acontece FORA do lock: segurá-lo durante o sleep faria
+        as outras threads enfileirarem no lock em vez de no tempo, e a
+        ordem de liberação passaria a depender do escalonador de threads
+        em vez da taxa declarada.
+        """
+        if self._intervalo_minimo <= 0:
+            return
+        with self._pacer_lock:
+            agora = time.monotonic()
+            inicio = max(agora, self._proxima_liberacao)
+            self._proxima_liberacao = inicio + self._intervalo_minimo
+        espera = inicio - time.monotonic()
+        if espera > 0:
+            # `self._stop.wait` e não `time.sleep`: um `stop()` durante a
+            # espera tem de interromper, senão o encerramento fica preso
+            # por até um intervalo inteiro (30 s a 8,5 bit/s).
+            self._stop.wait(espera)
+
+    def _repor(self, fatia: SliceType) -> None:
         while not self._stop.is_set():
+            self._aguarda_vez()
+            if self._stop.is_set():
+                return
             try:
                 chave = self._client.enc_keys(self._slave, PPK_BITS)
             except Exception:  # noqa: BLE001 — repor é best-effort; o get() reporta a falta

@@ -96,21 +96,58 @@ Duas consequências práticas exigiram ajuste:
    PPK idêntico, o script usa a pilha BB84 + **Cascade** (reconciliação de
    erro) — aí as chaves batem.
 
-## Custo de entrega da chave (relevante para o Tr_ppk da campanha)
+## Custo de entrega da chave, e onde ele estava
 
-Medido pela API, não só pelo protocolo:
+Decomposto por medição (17/10), para uma chave de 256 bits:
 
-| Operação | Tempo de parede |
-| --- | --- |
-| `enc_keys` (lado master, dispara a simulação) | **~15,4 s** |
-| `dec_keys` (lado slave, chave já distribuída) | **~1,1 s** |
+| Parcela | Custo | Fração dos 36 s originais |
+| --- | --- | --- |
+| **Cascade simulado passo a passo** | ~29 s | **81%** |
+| `import sequence` (pago a cada invocação) | 4,85 s | 13% |
+| BB84 fotônico a 256 bits | ~1,0 s | 3% |
+| `docker exec` + Python vazio | 0,2 s | <1% |
 
-O custo é dominado pela reconciliação (Cascade), não pelo tamanho da
-chave: 128 e 256 bits custam praticamente o mesmo. Como o `Tr_ppk` da
-URLLC em escala de teste é 30 s, **a pré-busca tem de ser assíncrona** —
-15 s dentro do caminho crítico do rekey seria inaceitável. O desenho da
-campanha já prevê buscar o PPK fora desse caminho; esses números são a
-justificativa quantitativa dessa escolha.
+Dois resultados dessa decomposição:
+
+* **O RabbitMQ é irrelevante.** O `beam.smp` fica em 0,1% de CPU, e a
+  diferença entre a simulação rodada direto (36,2 s) e a chamada
+  completa pela API ETSI 014 (~38 s) é de ~2 s, ou 5%. A fila não é o
+  gargalo.
+* **O custo é a reconciliação, não o canal quântico.** O BB84 fotônico
+  escala linearmente e é barato (0,69 s a 128 bits, 1,85 s a 1024). Os
+  29 s do Cascade não são física: são o preço de simular cada passagem
+  dele como eventos discretos de mensagens clássicas atravessando 20 km.
+
+Por isso existem **dois protocolos**, e os dois ficam no repositório:
+
+| Script | Reconciliação | Custo | Para quê |
+| --- | --- | --- | --- |
+| `bb84_sequence.py` | Cascade simulado | ~36 s | **caracterização**: roda poucas vezes, e é o que justifica os parâmetros do outro |
+| `bb84_reconciliation_model.py` | modelada pelo vazamento | **~6,2 s** | **campanha**: precisa de centenas de chaves |
+
+O segundo preserva por simulação de evento discreto a atenuação, a perda
+de fóton, a fidelidade de polarização e o peneiramento — logo o **QBER
+sai medido, não postulado** (2,2–3,0% nas execuções de validação). Só a
+reconciliação é modelada, pela taxa secreta assintótica
+`r = 1 − (1 + f)·h₂(e)` com `f = 1,16` (eficiência usual do Cascade), e
+os bits finais saem por SHAKE256, que faz o papel da amplificação de
+privacidade e garante chave idêntica nas duas pontas — requisito do PPK,
+que falha na autenticação se divergir um bit.
+
+**O que isso não autoriza afirmar**: que a reconciliação foi executada.
+O número de passagens, as mensagens e a latência do Cascade não são
+simulados ali. O artigo tem de declarar a modelagem, e é para isso que o
+script com Cascade real continua aqui.
+
+Com ~6,2 s por chave o `R_qkd` efetivo é de **41 bit/s**, contra 12,8 de
+demanda escalada da campanha. Como isso deixa de ser escasso, a escassez
+passa a ser **induzida por um limitador declarado** no
+`PpkProvider` (`r_qkd_bits_per_second`), agregado entre as fatias —
+validado convergindo para 8,5 bit/s, o valor que o desenho do C4a pede.
+Isso é melhor metodologicamente do que o estado anterior, em que o
+`R_qkd` oscilava 6,6–16,8 bit/s conforme a carga do hospedeiro, variável
+não controlada contaminando a razão demanda/oferta que decide quais
+fatias são rebaixadas.
 
 ## Topologia simulada
 

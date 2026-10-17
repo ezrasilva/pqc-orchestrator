@@ -8,7 +8,7 @@ nodes:
     neighbour_nodes:
       - name: B
         link_length: 20
-        protocol: /opt/protocols/bb84_sequence.py
+        protocol: /opt/protocols/bb84_reconciliation_model.py
         eavesdropper: False
 
   - node_name: B
@@ -16,5 +16,5 @@ nodes:
     neighbour_nodes:
       - name: A
         link_length: 20
-        protocol: /opt/protocols/bb84_sequence.py
+        protocol: /opt/protocols/bb84_reconciliation_model.py
         eavesdropper: False

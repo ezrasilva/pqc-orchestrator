@@ -33,6 +33,7 @@ from pathlib import Path
 
 from evaluation import instrumentation
 from evaluation.instrumentation import emit
+from evaluation.phase_a.bench_n3 import registra_carga
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results_phase_a"
 
@@ -148,6 +149,11 @@ def main() -> int:
 
     emit("phase_a_kem_env", liboqs_version=oqs.oqs_version(),
          repetitions=args.repetitions, warmup=args.warmup, n_kems=len(alvos))
+    # Mesma razão do `bench_n3.py`: sem registrar a carga não há como
+    # confiar na medição depois. Medido, este microbenchmark infla 3× sob
+    # `load` 18 e chega a dar ML-KEM-1024 mais rápido que o 768 —
+    # fisicamente impossível, e um bom detector de condição inutilizável.
+    registra_carga("inicio")
 
     try:
         for nome in alvos:

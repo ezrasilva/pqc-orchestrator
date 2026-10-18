@@ -655,6 +655,17 @@ def main() -> int:
               f"{carga['cpu_count']} núcleos. As medições absolutas ficarão infladas "
               f"em 2-3× — pare o rádio antes de colher resultados.")
 
+    # A A.2 precisa VARIAR o make_before_break, e o drop-in da Fase B o
+    # fixa em `yes`. Sem suspendê-lo, as execuções com `no` medem `yes` —
+    # e o modo de falha é silencioso: as duas configurações dão
+    # resultados idênticos. Ver `rekey_traffic.suspende_dropins_conflitantes`.
+    dropins_suspensos: list = []
+    if args.measurement == "rekey":
+        dropins_suspensos = rekey_traffic.suspende_dropins_conflitantes()
+        if dropins_suspensos:
+            print(f"drop-ins suspensos durante a medição: "
+                  f"{[p.name for p in dropins_suspensos]}")
+
     backup = backup_lab_config()
     try:
         for rtt in rtts:
@@ -699,6 +710,7 @@ def main() -> int:
         instrumentation.reset()
         netem.clear()
         rekey_traffic.set_make_before_break(None)
+        rekey_traffic.restaura_dropins(dropins_suspensos)
         if args.restore:
             print("restaurando a config por-fatia da Fase B...")
             restore_lab_config(backup)

@@ -115,9 +115,24 @@ from evaluation.instrumentation import emit
 # Drop-in em /etc/strongswan.d/: o strongswan.conf principal termina com
 # `include strongswan.d/*.conf`, então basta soltar um arquivo ali para
 # sobrepor a opção, sem editar o arquivo principal (que é global do host
-# e não versionado neste repositório). O prefixo `zz-` garante que vem
-# depois dos outros includes.
-MBB_DROPIN = Path("/etc/strongswan.d/zz-phase-a-mbb.conf")
+# e não versionado neste repositório).
+#
+# **O nome começa com `zzz` por um motivo medido.** A campanha da Fase B
+# instala `zz-sapq-ipsec.conf`, que fixa `make_before_break = yes` de
+# propósito (a A.2 mostrou que é requisito). Com o nome anterior,
+# `zz-phase-a-mbb.conf`, o arquivo da Fase B era carregado DEPOIS e
+# ganhava — o toggle desta medição deixava de valer em silêncio, e as
+# execuções com `make_before_break = no` mediam, na verdade, `yes`.
+#
+# O sintoma que denunciou: na primeira A.2 colhida depois de a Fase B
+# instalar o drop-in, as linhas de `no` e de `yes` ficaram IDÊNTICAS
+# (interrupção de ida de 0,00 ms em todos os RTTs nas duas), quando a
+# execução anterior dava 163,7 ms a 40 ms de RTT para `no`. Dois ajustes
+# opostos não produzem o mesmo resultado por acaso.
+#
+# Ordenar depois resolve, mas depender só de ordem alfabética é frágil;
+# por isso `assert_sem_conflito_mbb()` verifica e falha alto.
+MBB_DROPIN = Path("/etc/strongswan.d/zzz-phase-a-mbb.conf")
 
 _PING_RE = re.compile(
     r"^\[(?P<ts>\d+\.\d+)\]\s+\d+ bytes from \S+:\s+icmp_seq=(?P<seq>\d+)\s+ttl=\d+\s+time=(?P<rtt>[\d.]+)\s*ms"
@@ -156,6 +171,76 @@ class PingSample:
     rtt_ms: float
 
 
+def assert_sem_conflito_mbb() -> None:
+    """Falha se outro drop-in também define `make_before_break`.
+
+    Ordenar o arquivo desta medição por último faz ele ganhar, mas
+    depender de ordem alfabética é frágil: basta alguém instalar um
+    `zzzz-*.conf` para o toggle voltar a ser ignorado — e o modo de falha
+    é SILENCIOSO, com as duas configurações medindo a mesma coisa. Esta
+    checagem transforma isso num erro antes de colher.
+    """
+    conflitos = []
+    for arquivo in sorted(Path("/etc/strongswan.d").glob("*.conf")):
+        if arquivo == MBB_DROPIN:
+            continue
+        try:
+            texto = arquivo.read_text()
+        except OSError:
+            continue
+        for linha in texto.splitlines():
+            sem_comentario = linha.split("#", 1)[0]
+            if "make_before_break" in sem_comentario:
+                conflitos.append(f"{arquivo} -> {sem_comentario.strip()}")
+    if conflitos:
+        raise RuntimeError(
+            "outro drop-in do strongSwan define make_before_break e anularia o "
+            "toggle desta medição:\n  " + "\n  ".join(conflitos) +
+            f"\nMova-o temporariamente, ou garanta que {MBB_DROPIN.name} seja o "
+            "último em ordem alfabética E o único a definir a opção."
+        )
+
+
+_SUFIXO_SUSPENSO = ".suspenso-pela-fase-a"
+
+
+def suspende_dropins_conflitantes() -> list[Path]:
+    """Move de lado todo drop-in que define `make_before_break`.
+
+    A Fase B instala `zz-sapq-ipsec.conf` fixando a opção em `yes`, e
+    isso é correto — a A.2 mostrou que é requisito da proposta. Mas a
+    própria A.2 precisa VARIAR a opção para medir, então durante a
+    medição esse arquivo tem de sair do caminho.
+
+    Renomear em vez de editar: o arquivo volta byte a byte, e um
+    processo interrompido deixa um rastro visível
+    (`*.suspenso-pela-fase-a`) em vez de uma config silenciosamente
+    alterada.
+    """
+    suspensos = []
+    for arquivo in sorted(Path("/etc/strongswan.d").glob("*.conf")):
+        if arquivo == MBB_DROPIN:
+            continue
+        try:
+            texto = arquivo.read_text()
+        except OSError:
+            continue
+        if any("make_before_break" in l.split("#", 1)[0] for l in texto.splitlines()):
+            destino = arquivo.with_suffix(arquivo.suffix + _SUFIXO_SUSPENSO)
+            arquivo.rename(destino)
+            suspensos.append(destino)
+    if suspensos:
+        emit("phase_a_dropins_suspensos", files=[str(p) for p in suspensos])
+    return suspensos
+
+
+def restaura_dropins(suspensos: list[Path]) -> None:
+    for destino in suspensos:
+        original = Path(str(destino)[: -len(_SUFIXO_SUSPENSO)])
+        if destino.exists():
+            destino.rename(original)
+
+
 def set_make_before_break(enabled: bool | None) -> None:
     """Liga/desliga `charon.make_before_break`; `None` remove o drop-in.
 
@@ -165,6 +250,7 @@ def set_make_before_break(enabled: bool | None) -> None:
     if enabled is None:
         MBB_DROPIN.unlink(missing_ok=True)
         return
+    assert_sem_conflito_mbb()
     MBB_DROPIN.write_text(
         "# Escrito pela Fase A (evaluation/phase_a/rekey_traffic.py).\n"
         "# Removível: nada mais depende deste arquivo.\n"

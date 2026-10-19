@@ -38,6 +38,7 @@ from __future__ import annotations
 import re
 import subprocess
 import threading
+import traceback
 from typing import NamedTuple
 
 from evaluation.collectors.resource import find_charon_pid
@@ -262,8 +263,23 @@ class RotationDriver:
         while not self._stop.wait(self._interval):
             try:
                 self._tick()
-            except Exception:
-                pass  # não derruba o laço de coleta por uma falha pontual de leitura
+            except Exception as exc:
+                # **Não engolir em silêncio.** A versão anterior fazia
+                # `pass` aqui, com o comentário "não derruba o laço por
+                # uma falha pontual de leitura" — a intenção é correta,
+                # mas sem registrar nada o efeito foi esconder um defeito
+                # por uma campanha inteira: as tarefas de REAUTH_PPK eram
+                # enfileiradas, a exceção morria aqui, e o `.jsonl`
+                # mostrava `rotation_enqueued` sem nenhum evento de PPK
+                # depois — como se o orquestrador tivesse decidido não
+                # rotacionar.
+                #
+                # Seguir em frente continua certo (um tick perdido não
+                # deve derrubar a coleta), mas agora o tick perdido
+                # APARECE, com tipo e mensagem.
+                emit("rotation_tick_failed",
+                     error=f"{type(exc).__name__}: {exc}",
+                     traceback=traceback.format_exc()[-1200:])
 
     def start(self) -> None:
         self._stop.clear()

@@ -35,23 +35,33 @@ from evaluation.collectors.traffic import run_latency_probe, run_throughput_prob
 from evaluation.collectors.xfrm_monitor import XfrmMonitor
 from evaluation.collectors.xfrm_state import XfrmStatePoller
 from evaluation.instrumentation import emit
-from evaluation.rotation_driver import RotationDriver
+from evaluation.rotation_driver import (TR_CHILD_SECONDS, TR_PPK_SECONDS,
+                                        RotationDriver)
 from ipsec_agent.agent import IpsecAgentCore
 from kms.models import SliceType
 from kms.qkd import PpkProvider, Qkd014Client
 from kms.service import KeyManagementCore
 from kms.store import KeyStore
+from scheduler.models import SchedulingPolicy
 from scheduler.service import SchedulerCore
 from smo.service import SmoCore
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
+# Chaves conforme a especificação da Fase B (ver
+# docs/CAMPANHA-SAPQ-IPSEC.md). O antigo cenário 2 ("diferenciado por
+# fatia + EDF") saiu: naquele desenho o EDF era cenário próprio, e na
+# especificação atual ele virou VARIANTE DE POLÍTICA de 4a e 4b, onde há
+# disputa e portanto onde a política faz diferença. Comparar as duas
+# políticas sem disputa não mede nada — com no máximo uma tarefa na
+# fila, as duas chegam à mesma ordem.
 SCENARIOS = {
     "0": "evaluation.scenarios.scenario0_baseline_native",
     "1": "evaluation.scenarios.scenario1_static_pqc",
-    "2": "evaluation.scenarios.scenario2_diff_no_risk",
+    "2": "evaluation.scenarios.scenario2_max_protection",
     "3": "evaluation.scenarios.scenario3_risk_aware",
-    "4": "evaluation.scenarios.scenario4_contention",
+    "4a": "evaluation.scenarios.scenario4a_qkd_scarcity",
+    "4b": "evaluation.scenarios.scenario4_contention",
 }
 
 def _resolve_bind_ip(iface: str, netns: str, retries: int = 5, retry_delay_seconds: float = 0.3) -> str:
@@ -215,8 +225,23 @@ def _archive_charon_logs(run_id: str, offsets: dict[str, int]) -> list[Path]:
     return arquivados
 
 
-def _build_smo() -> tuple[SmoCore, SchedulerCore, KeyStore, PpkProvider]:
-    store = KeyStore(RESULTS_DIR / ".kms-experiment.sqlite3")
+def _build_smo(run_id: str, r_qkd_bits_per_second: float | None = None
+               ) -> tuple[SmoCore, SchedulerCore, KeyStore, PpkProvider]:
+    # Banco POR EXECUÇÃO, não compartilhado.
+    #
+    # **Por que.** Com um arquivo único, o estado de chave vazava entre
+    # iterações e entre cenários: uma chave deixada em RENEWING por uma
+    # execução fazia a seguinte achá-la pelo `get_active_key` e levantar
+    # `InvalidTransitionError`. No piloto isso apareceu como um cenário
+    # inteiro sem nenhuma rotação de PPK — e a causa estava numa
+    # iteração ANTERIOR, de outro cenário.
+    #
+    # Cada iteração é um experimento independente; compartilhar o banco
+    # introduz acoplamento entre amostras que deveriam ser
+    # independentes, o que é problema de método e não só de robustez. O
+    # arquivo por execução também deixa o rastro de auditoria de cada
+    # uma preservado ao lado do `.jsonl` dela.
+    store = KeyStore(RESULTS_DIR / f".kms-{run_id}.sqlite3")
     kms = KeyManagementCore(store)
     scheduler = SchedulerCore()
     # O poço começa a gastar QKD ao `start()`, então ele sobe aqui e é
@@ -224,13 +249,18 @@ def _build_smo() -> tuple[SmoCore, SchedulerCore, KeyStore, PpkProvider]:
     provider = PpkProvider(
         Qkd014Client(QKDN_MASTER_URL), QKDN_SLAVE_SAE_ID,
         tuple(SliceType), depth=PPK_POOL_DEPTH,
+        # Declarado pelo cenário (C4a usa taxa abaixo da demanda). Sem
+        # isso o R_qkd é o que a simulação entrega, que varia com a carga
+        # do hospedeiro — ver kms/qkd.PpkProvider.
+        r_qkd_bits_per_second=r_qkd_bits_per_second,
     )
     provider.start()
     smo = SmoCore(kms, scheduler, IpsecAgentCore(), provider)
     return smo, scheduler, store, provider
 
 
-def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_seconds: int) -> str:
+def run_once(scenario_key: str, iteration: int, duration_seconds: int,
+             warmup_seconds: int, policy_override=None) -> str:
     """**Achado real rodando a primeira campanha longa**: `module.setup()`
     rodava FORA do `try/finally` — uma falha de setup (ex: a conexão
     estática do Cenário 1 não estabelecer) pulava o `teardown()` (lab
@@ -255,11 +285,32 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int, warmup_se
         print(f"[{run_id}] setup...")
         module.setup()
 
-        policy = getattr(module, "scheduling_policy", None)
+        # O cenário declara a política, e opcionalmente os prazos de
+        # rotação e a taxa de QKD. Mesmo padrão do `scheduling_policy`,
+        # que já era lido assim: o cenário é um módulo de dados, e quem
+        # monta o orquestrador é este runner.
+        #
+        # `policy_override` vem da linha de comando e vence o módulo,
+        # porque a especificação pede C4a e C4b rodando com risk-aware E
+        # com EDF — e duplicar os módulos só para trocar uma constante
+        # faria dois arquivos divergirem com o tempo.
+        policy = policy_override or getattr(module, "scheduling_policy", None)
         if policy is not None:
-            smo, scheduler, store, ppk_provider = _build_smo()
+            smo, scheduler, store, ppk_provider = _build_smo(
+                run_id,
+                r_qkd_bits_per_second=getattr(module, "r_qkd_bits_per_second", None))
             scheduler.set_policy(policy)
-            rotation_driver = RotationDriver(smo, scheduler, check_interval_seconds=10.0)
+            rotation_driver = RotationDriver(
+                smo, scheduler,
+                tr_child=getattr(module, "tr_child", None),
+                tr_ppk=getattr(module, "tr_ppk", None),
+            )
+            emit("scenario_config", scenario=module.NAME, policy=policy.value,
+                 r_qkd_bits_per_second=getattr(module, "r_qkd_bits_per_second", None),
+                 tr_child={k.value: v for k, v in (getattr(module, "tr_child", None)
+                                                   or TR_CHILD_SECONDS).items()},
+                 tr_ppk={k.value: v for k, v in (getattr(module, "tr_ppk", None)
+                                                 or TR_PPK_SECONDS).items()})
 
         charon_pid = find_charon_pid("cu-ns")
         pids = {"experiment": __import__("os").getpid()}
@@ -419,6 +470,10 @@ def main() -> int:
     parser.add_argument("--iterations", type=int, default=10, help="repetições por cenário (default: 10)")
     parser.add_argument("--duration", type=int, default=300, help="segundos de coleta por execução (default: 300)")
     parser.add_argument("--warmup", type=int, default=10, help="segundos descartados no início de cada execução")
+    parser.add_argument("--policy", default=None, choices=["risk_aware", "weighted_edf"],
+                        help="sobrepõe a política do cenário. A especificação pede 4a e "
+                             "4b com risk-aware E com EDF; isto evita duplicar os "
+                             "módulos só para trocar uma constante")
     parser.add_argument("--no-shuffle", dest="shuffle", action="store_false",
                         help="roda os cenários na ordem dada, agrupados por cenário, "
                              "em vez de blocos aleatorizados. Útil para depurar um "
@@ -433,6 +488,11 @@ def main() -> int:
     print("checando se há processos zumbis antes de começar...")
     lab_control.assert_no_stray_processes()
     print("ok, nenhum processo a mais detectado.")
+
+    policy_override = None
+    if args.policy:
+        policy_override = SchedulingPolicy(args.policy.upper())
+        print(f"política sobreposta na linha de comando: {policy_override.value}")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -482,7 +542,8 @@ def main() -> int:
         # o /tmp pode passar do limite no meio, não só no começo.
         lab_control.ensure_disk_headroom()
         try:
-            log_paths.append(run_once(key, i, args.duration, args.warmup))
+            log_paths.append(run_once(key, i, args.duration, args.warmup,
+                                      policy_override=policy_override))
         except Exception as exc:
             # uma falha numa execução não pode derrubar a campanha
             # inteira (achado real: já aconteceu, ver docstring de

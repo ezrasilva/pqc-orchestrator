@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import pwd
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -166,6 +167,54 @@ def load_and_initiate_n3() -> None:
     result = subprocess.run(["bash", str(script)], capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"load-and-initiate-n3.sh falhou: {result.stderr}")
+
+
+def apply_uniform_n3_profile(ike_proposal: str, esp_proposal: str) -> None:
+    """Põe a MESMA proposta criptográfica nas três fatias do N3.
+
+    Serve ao cenário de "proteção máxima sem critério" (C2 da Fase B):
+    todas as fatias recebem o perfil da mais exigente, para medir o
+    custo de não diferenciar. O `ppk_id` de cada fatia é preservado — o
+    que se uniformiza é a proposta, não a identidade do PPK, que tem de
+    seguir distinta para o consumo de QKD por fatia continuar
+    observável.
+
+    Desfaz-se com `restore_versioned_n3_config()`, que recupera do git
+    em vez de guardar o original em memória — processos separados fazem
+    setup e teardown nesta campanha, e já se perdeu config duas vezes
+    por confiar em estado de módulo.
+    """
+    base = LIVE_LAB_IPSEC_DIR
+    for lado in ("swanctl-cu", "swanctl-edge"):
+        caminho = base / lado / "conf.d" / "connections.conf"
+        linhas = []
+        for linha in caminho.read_text().splitlines():
+            if re.match(r"^        proposals = ", linha):
+                linha = f"        proposals = {ike_proposal}"
+            elif re.match(r"^                esp_proposals = ", linha):
+                linha = f"                esp_proposals = {esp_proposal}"
+            linhas.append(linha)
+        caminho.write_text("\n".join(linhas) + "\n")
+    restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
+    load_and_initiate_n3()
+
+
+def restore_versioned_n3_config() -> None:
+    """Devolve o `connections.conf` versionado e recarrega.
+
+    `git checkout` em vez de backup em memória: o `connections.conf` É
+    versionado em `~/oai-lab-conf`, e recuperar da fonte de verdade
+    funciona mesmo quando o processo que alterou já morreu — que é o
+    caso quando uma iteração falha no meio.
+    """
+    subprocess.run(
+        ["git", "-C", str(LIVE_LAB_IPSEC_DIR), "checkout",
+         "swanctl-cu/conf.d/connections.conf",
+         "swanctl-edge/conf.d/connections.conf"],
+        capture_output=True, check=True,
+    )
+    restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
+    load_and_initiate_n3()
 
 
 def apply_slice_marks(netns: str, teid_urllc: str, teid_embb: str, teid_miot: str) -> None:

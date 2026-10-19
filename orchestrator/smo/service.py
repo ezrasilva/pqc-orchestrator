@@ -27,7 +27,7 @@ from typing import Optional
 
 from ipsec_agent.agent import IpsecAgentCore
 from ipsec_agent.models import ConnectionName
-from kms.models import InterfaceType, SliceType
+from kms.models import InterfaceType, KeyState, SliceType
 from kms.qkd import PpkProvider
 from kms.service import KeyManagementCore
 from scheduler.models import EnqueueTaskRequest, SchedulingPolicy
@@ -159,10 +159,23 @@ class SmoCore:
                 error_message=rekey_result.error_message,
             )
 
-        old_active = self._kms.get_active_key(slice, interface)
-        if old_active is not None:
-            self._kms.mark_renewing(old_active.key_id, f"substituída pela task {task.task_id}")
-
+        # PROVISIONA ANTES de mutar estado. A ordem anterior era
+        # `mark_renewing` e depois `provision_ppk`, o que só funcionava
+        # enquanto o provisionamento não podia falhar. Com a chave vindo
+        # de QKD ele FALHA por desenho — poço vazio é escassez de
+        # entropia, o fenômeno que o C4a existe para medir — e a chave
+        # antiga ficava presa em RENEWING, sem rollback.
+        #
+        # A consequência foi pior que um estado inconsistente: o tick
+        # seguinte achava a mesma chave em RENEWING, tentava
+        # `mark_renewing` de novo e levantava `InvalidTransitionError:
+        # RENEWING -> RENEWING`, que o laço do rotation_driver engolia em
+        # silêncio. No piloto isso apareceu como 13 `rotation_enqueued`
+        # de REAUTH_PPK sem um único evento de PPK depois — como se o
+        # orquestrador tivesse decidido não rotacionar.
+        #
+        # Provisionar primeiro elimina a janela em vez de compensá-la:
+        # se não há chave, nada foi tocado e não há o que desfazer.
         material = self._kms.provision_ppk(
             slice, interface, self._ppk_provider,
             reason=task.reason or f"task {task.task_id}",
@@ -184,6 +197,15 @@ class SmoCore:
                 slice=slice, interface=interface,
                 error_message="poço de PPK vazio (escassez de QKD) — rotação adiada",
             )
+
+        old_active = self._kms.get_active_key(slice, interface)
+        if old_active is not None and old_active.state is KeyState.ACTIVE:
+            # Só marca o que está ACTIVE. `get_active_key` devolve
+            # ACTIVE **ou** RENEWING de propósito (é "a chave em
+            # serviço, possivelmente em substituição"), então remarcar
+            # sem checar é a transição inválida que travava o laço.
+            self._kms.mark_renewing(old_active.key_id,
+                                    f"substituída pela task {task.task_id}")
 
         # `reauth_with_ppk` e não `apply_key_material`: o PSK é fixo e
         # quem rotaciona é o PPK, que entra na derivação no IKE_AUTH e

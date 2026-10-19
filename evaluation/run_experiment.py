@@ -294,7 +294,13 @@ def run_once(scenario_key: str, iteration: int, duration_seconds: int,
         # porque a especificação pede C4a e C4b rodando com risk-aware E
         # com EDF — e duplicar os módulos só para trocar uma constante
         # faria dois arquivos divergirem com o tempo.
-        policy = policy_override or getattr(module, "scheduling_policy", None)
+        # A sobreposição SUBSTITUI uma política declarada; nunca CRIA
+        # uma. C0 (sem IPsec) e C1 (laço de intervalo fixo próprio) não
+        # declaram política porque não usam o orquestrador — dar-lhes um
+        # driver de rotação por causa de uma flag global mediria outro
+        # cenário com o nome deles.
+        declarada = getattr(module, "scheduling_policy", None)
+        policy = (policy_override or declarada) if declarada is not None else None
         if policy is not None:
             smo, scheduler, store, ppk_provider = _build_smo(
                 run_id,

@@ -21,7 +21,10 @@ from scheduler.models import SliceType as SchedSliceType
 from scheduler.models import TaskPriority, TaskType
 
 NAME = "cenario4_contencao"
-scheduling_policy = SchedulingPolicy.RISK_AWARE  # troque antes de chamar run_experiment pra comparar
+# Padrão risk-aware; o contraponto com EDF sai por `--policy weighted_edf`
+# no runner, sem editar este arquivo (a especificação pede 4a e 4b nas
+# duas políticas).
+scheduling_policy = SchedulingPolicy.RISK_AWARE
 
 
 def setup() -> None:

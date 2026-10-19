@@ -56,10 +56,23 @@ def carrega(caminho: Path) -> dict:
             continue
 
     cargas = [e for e in eventos if e.get("event") == "phase_a_host_load"]
+    tem_rekey = any(e.get("event") == "phase_a_rekey" for e in eventos)
+    # A A.2 varia `make_before_break`, e um drop-in da Fase B fixava a
+    # opção, anulando o toggle em silêncio. O evento
+    # `phase_a_dropins_suspensos` só existe na versão corrigida do
+    # harness, então a ausência dele num arquivo de rekey significa
+    # "toggle não verificado" — e somar esse arquivo mistura repetições
+    # em que `no` mediu `yes` com repetições corretas, o que já
+    # aconteceu: dobrou o `n` sem ninguém notar.
+    toggle_verificado = any(
+        e.get("event") == "phase_a_dropins_suspensos" for e in eventos)
+
     if not cargas:
         condicao = "sem_registro"
     elif any(c.get("radio_running") for c in cargas):
         condicao = "radio_ligado"
+    elif tem_rekey and not toggle_verificado:
+        condicao = "toggle_nao_verificado"
     else:
         condicao = "valido"
     return {
@@ -160,8 +173,16 @@ def tabela_a3(arquivos: list[dict]) -> str:
     por_perfil: dict[str, list[dict]] = defaultdict(list)
     for arq in arquivos:
         for e in arq["eventos"]:
-            if e.get("event") == "phase_a_dataplane":
-                por_perfil[e["label"]].append(e)
+            if e.get("event") != "phase_a_dataplane":
+                continue
+            # Descarta medição que falhou. `ok` só existe nas execuções
+            # posteriores à correção; nas anteriores, vazão zero com
+            # `retransmits` ausente é a assinatura da falha.
+            if e.get("ok") is False:
+                continue
+            if not e.get("throughput_mbps") and e.get("retransmits") is None:
+                continue
+            por_perfil[e["label"]].append(e)
     if not por_perfil:
         return ""
     linhas = ["### A.3 — plano de dados por cifra do ESP", "",
@@ -254,9 +275,11 @@ def main() -> int:
     sentidos = {
         "valido": "rádio parado e carga registrada — **condição que a Fase A especifica**",
         "radio_ligado": "rádio de pé durante a medição: premissa violada, descartado",
+        "toggle_nao_verificado": "A.2 anterior à correção do conflito de drop-in: o "
+                                 "toggle de `make_before_break` podia estar anulado, descartado",
         "sem_registro": "anterior à instrumentação de carga: condição desconhecida, descartado",
     }
-    for cond in ("valido", "radio_ligado", "sem_registro"):
+    for cond in ("valido", "radio_ligado", "toggle_nao_verificado", "sem_registro"):
         if cond in por_condicao:
             cabecalho.append(f"| `{cond}` | {len(por_condicao[cond])} | {sentidos[cond]} |")
     cabecalho.append("")

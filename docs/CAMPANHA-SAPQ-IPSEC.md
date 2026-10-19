@@ -102,92 +102,33 @@ O que isso diz, por medição:
 
 `bench_n3.py` passou a registrar `load`, contagem de núcleos e quais processos de rádio estão de pé a cada execução e a cada ponto de RTT, e a **avisar em voz alta** quando a premissa é violada. Registrar não corrige a medição; corrige a possibilidade de confiar nela depois.
 
-### Resultados da Fase A (15/10): a tabela que alimenta a Fase B
+### Resultados da Fase A: a tabela que alimenta a Fase B
 
-Execuções completas, sem falha: A.1 540/540 handshakes, A.2 560 eventos, A.3 4 pontos, A.4 90 rodadas, A.5 41 KEMs.
+**Os números estão em [`FASE-A-DADOS-CONSOLIDADOS.md`](FASE-A-DADOS-CONSOLIDADOS.md), gerado dos dados** por `evaluation/phase_a/consolidate.py`. Esta seção guarda só a interpretação.
 
-**A.1 + A.6 — o custo do perfil é de round-trips, não de bytes nem de CPU.** p50 de handshake, em ms:
+A separação é deliberada: as tabelas desta seção já foram escritas à mão e já precisaram de **duas correções manuais** — a decisão da cifra e o `R_qkd` —, cada uma arriscando ficar divergente dos arquivos de resultado. Gerar do dado elimina essa classe de erro, e o gerador **rejeita automaticamente** execuções colhidas em condição inválida, declarando a procedência de cada arquivo.
 
-| Perfil | Trocas | RTT 0,03 ms | RTT 10,1 ms | RTT 40,1 ms | Δ(0→40) / RTT |
-| --- | --- | --- | --- | --- | --- |
-| K0 (x25519, 541 B) | 2 | 29,2 | 49,8 | 110,8 | **2,04** |
-| K1 (ML-KEM-512, 1309 B) | 2 | 31,8 | 49,6 | 110,5 | **1,97** |
-| K2 (ML-KEM-768, 1693 B) | 2 | 29,8 | 49,6 | 110,0 | **2,00** |
-| K3 (híbrido, 1871 B) | **3** | 31,2 | 62,4 | 152,6 | **3,03** |
-| K4 (ML-KEM-1024, 2077 B) | 2 | 29,8 | 49,9 | 110,8 | **2,02** |
-| K5 (K3 + PPK, 1898 B) | **3** | 34,3 | 63,8 | 152,2 | **2,94** |
+Três filtros de procedência, cada um por um defeito que aconteceu de verdade:
 
-A última coluna é exatamente o número de trocas de cada perfil. Duas consequências:
-
-* **K4 custa o mesmo que K0 em todos os RTTs**, com quatro vezes os bytes. Nas faixas em jogo (até ~2 kB), bytes no fio não custam tempo mensurável; só custam quando forçam uma troca a mais.
-* **A A.6 se pagou.** A 0,03 ms o híbrido parece barato (K3 em 31,2 contra K2 em 29,8: +1,4 ms, 5%). A 40 ms de RTT a penalidade é de **+42,6 ms (39%)**. Medir só na bancada levaria o artigo à conclusão oposta, justamente para a URLLC — a fatia que o catálogo quer atender com K5.
-
-**A.2 + A.6 — a interrupção tem duas componentes, e o make-before-break mata só uma (a que importa).** Interrupção p50 medida pelos fluxos UDP, **por sentido** — ver "Por que a A.2 precisa medir os dois sentidos" abaixo:
-
-| Evento | `make_before_break` | Sentido | RTT 0,04 ms | RTT 10,1 ms | RTT 40,1 ms |
-| --- | --- | --- | --- | --- | --- |
-| rekey de Child SA | indiferente | ida e volta | **0** | **0** | **0** |
-| reauth | `yes` | ida (initiator→responder) | **0** | **0** | **0** |
-| reauth | `yes` | volta (responder→initiator) | 1,7 ms | 1,8–2,1 ms | 1,8–2,1 ms |
-| reauth | `no` | ida | 3,2–3,8 ms | **43,5 ms** | **163,7 ms** |
-| reauth | `no` | volta | 3,0–3,8 ms | 3,2–3,8 ms | 3,6 ms |
-
-(6 perfis × 20 repetições a RTT 0; K2 e K5 × 20 nos outros pontos. Todas as linhas de base: 0 perda nos dois sentidos.)
-
-A estrutura é clara:
-
-* **A componente de ida escala com o RTT e vale exatamente 4 round-trips**: (163,71 − 3,57)/40,09 = 4,00 e (43,49 − 3,57)/10,11 = 3,95. É o custo de o initiator ficar sem SA de saída enquanto espera o delete e o handshake novo inteiro.
-* **A componente de volta é de 2 a 4 ms e NÃO depende do RTT**, em nenhuma configuração. É a corrida de troca de SA no responder: a reauth é iniciada pela CU, que troca a própria SA de saída atomicamente, mas a borda troca a dela ao processar a troca e há um instante em que a SA de saída que ela usa não casa com a de entrada instalada na CU. Efeito local, não de protocolo.
-* **O make-before-break elimina a componente que escala** (ida: zero em todos os RTTs) e reduz a local pela metade (1,7–2,1 contra 3,0–3,8 ms). A 40 ms de RTT isso leva o pior caso de **163,7 ms para ~1,8 ms, ou 90×** — mas **não a zero**.
-
-A interrupção é a mesma em K0 (x25519) e K4 (ML-KEM-1024), ou seja **não é do KEM**: é o custo de reinstalar a SA, e o que escala com o RTT é o número de trocas que isso embute.
-
-Consequência direta para a proposta: a renovação de PPK exige reauth, e num backhaul de 20 ms por sentido deixar `make_before_break = no` custaria **163 ms de interrupção a cada renovação** — inviável para URLLC. Com ele ligado sobram ~1,8 ms num sentido só, o que cabe no orçamento da URLLC. É a configuração que a Fase B tem de fixar, e o artigo deve reportar o resíduo de 1,8 ms em vez de afirmar interrupção nula.
-
-### Por que a A.2 precisa medir os dois sentidos
-
-A primeira versão da A.2 media só CU → borda e concluiu que o make-before-break dava **interrupção zero**. Está errado, e o erro era do instrumento: com make-before-break a interrupção existe **apenas no sentido responder → initiator**, que era justamente o que não estava sendo medido.
-
-O que denunciou foi uma divergência entre instrumentos. O ping a 1 kHz reportava 1 pacote perdido em 101 de 120 reauths, enquanto o fluxo UDP, a nove vezes a taxa, reportava zero — se houvesse lacuna de tráfego o fluxo mais rápido perderia mais, não menos. Os contadores ICMP do kernel nos dois netns resolveram (8 reauths, MBB ligado):
-
-| Contador | Valor |
+| Filtro | O defeito que ele previne |
 | --- | --- |
-| CU `OutEchos` (requests enviados) | 16165 |
-| Borda `InEchos` (requests recebidos) | **16165** → ida sem perda |
-| Borda `OutEchoReps` (replies enviados) | 16165 |
-| CU `InEchoReps` (replies recebidos) | **16158** → **7 perdidos na volta** |
+| `radio_ligado` | A Fase A é especificada sem OCUDU nem srsUE; as primeiras execuções não respeitaram isso. Efeito: 0% na A.5, ~17% constante na A.1 e o bastante na A.3 para **inverter a decisão da cifra**. |
+| `toggle_nao_verificado` | O drop-in da Fase B fixava `make_before_break = yes` e anulava o toggle da A.2 em silêncio: as execuções com `no` mediam `yes`. Detectado porque as duas configurações deram resultados **idênticos**. |
+| `sem_registro` | Anterior à instrumentação de carga: a condição é desconhecida, então não entra. |
 
-Com fluxo UDP nos dois sentidos, 197275 pacotes cada: 0 na ida, 64 na volta (8 por reauth). Com o sentido certo medido, os dois instrumentos **sempre concordaram**: 1 pacote a 1 kHz e 8 a 9 kHz são ambos ~0,9 ms.
+**O que os dados sustentam:**
 
-Duas lições de método que ficam registradas porque custaram tempo:
+1. **O custo do perfil é de round-trips, não de bytes nem de CPU.** A inclinação do tempo de handshake por RTT vale exatamente o número de trocas de cada perfil, nos seis. E K4 (ML-KEM-1024, 2077 B) custa o mesmo que K0 (x25519, 541 B) em todos os pontos: quatro vezes os bytes, zero de diferença. Bytes só custam quando forçam uma troca a mais.
 
-1. **No iperf3, a perda só existe no relatório do RECEPTOR.** No UDP ela é calculada por quem recebe; o emissor só sabe o que enviou. Inverter o sentido com `-R` mantém o servidor como emissor e move a perda para o relatório do cliente — ler o campo do servidor nesse modo devolve ausência de informação, que é fácil confundir com ausência de perda. A sonda passou a escolher o sentido trocando quem é servidor e quem é cliente, com o servidor sempre no papel de receptor.
-2. **Divergência entre dois instrumentos é informação, não ruído.** A tentação era declarar o ping pouco confiável (e eu cheguei a atribuir a diferença a travamento do processo de sonda, o que era falso). O ping estava certo; o erro era o sentido medido.
+2. **A A.6 se pagou.** Na bancada o híbrido parece quase gratuito; a 40 ms de RTT a penalidade é de ~40%. Medir só a 0,04 ms levaria o artigo à conclusão oposta, justamente para a URLLC — a fatia que o catálogo quer atender com K5.
 
-**A.3 — resolve a decisão AES-128 × AES-256.** 25–30 s, 4 fluxos TCP, ordem sorteada, **com o rádio parado e a carga registrada** (`load_1min` entre 0,37 e 2,5):
+3. **A interrupção de rotação tem duas componentes, e o `make_before_break` mata a que escala.** A de ida vale **exatamente 4 round-trips** — (163,38 − 3,12)/40,2 = 3,99 — e por isso cresce com o RTT; a de volta é de 1,5 a 3,2 ms e **não depende do RTT**, porque é a corrida de troca de SA no responder. Com o `make_before_break` ligado a componente de ida desaparece em todos os RTTs e sobra só a local, de ~1,6 a 1,8 ms num sentido. Num backhaul de 20 ms por sentido isso é a diferença entre **163 ms e 1,8 ms de interrupção a cada renovação de PPK** — e como renovar PPK exige reauth, é requisito da proposta, não afinação.
 
-| Perfil | Vazão (média de 3) | Variação interna | RTT sob carga p50/p95/p99 (ms) | softirq |
-| --- | --- | --- | --- | --- |
-| sem IPsec | 14843,8 Mbps | 5,6% | 0,019 / 0,030 / 0,044 | 32,3% |
-| ESP-AES128GCM | **2706,7 Mbps** | 2,0% | 0,040 / 0,084 / 0,230 | 36,9% |
-| ESP-AES256GCM | **2669,3 Mbps** | 0,4% | 0,040 / 0,084 / 0,210 | 36,7% |
-| ESP-CHACHA20 | 2116,8 Mbps | — | 0,045 / 0,089 / 0,144 | 36,8% |
+4. **O rekey de Child SA não perde um único pacote**, em nenhum perfil, sentido ou RTT, com linha de base zero. É o que justifica a arquitetura de dois níveis: a rotação frequente sai de graça e só a renovação de PPK paga.
 
-**Decisão: AES-256-GCM nas TRÊS fatias.** A diferença de vazão contra o AES-128 é de **1,4%**, que cabe dentro da variação entre execuções do próprio AES-128 (2,0%) — são estatisticamente indistinguíveis. E a latência também: p99 de 0,210 contra 0,230 ms, com o AES-256 marginalmente melhor. Não há eixo em que o AES-128 compense.
+5. **AES-256-GCM nas três fatias.** A diferença de vazão contra o AES-128 cabe dentro da variação entre execuções do próprio AES-128, e a latência é indistinguível. Não há eixo em que o AES-128 compense.
 
-O ChaCha20 fica 21,8% abaixo, consistente com não haver AES-NI para ele; só se justifica em hardware sem aceleração de AES.
-
-> **Correção de uma medição anterior.** A primeira execução da A.3 (15/10) mediu o AES-256 **9,2% abaixo** do AES-128 e essa diferença foi usada para escolher AES-128 na eMBB, alegando que ela é limitada por vazão. O gap era **artefato de contenção de CPU**: aquela execução foi tomada com o rádio rodando, e a Fase A é especificada para rodar sem ele. Com o rádio parado o gap cai para 1,4%, dentro do ruído, e a eMBB passou a AES-256 como as outras. O `connections.conf` e o catálogo de perfis foram corrigidos.
-
-**A.4 — o custo de rekey simultâneo é sublinear.** K2, 10 rodadas por ponto, todas com 100% de sucesso:
-
-| Child SAs | Parede p50 | Por filho p50 | Por filho max | ms por filho |
-| --- | --- | --- | --- | --- |
-| 3 | 26,5 ms | 24,5 ms | 25,6 ms | 8,83 |
-| 10 | 50,8 ms | 31,9 ms | 48,0 ms | 5,08 |
-| 30 | 128,8 ms | 94,5 ms | 121,4 ms | 4,29 |
-
-Dez vezes mais Child SAs custam 4,9 vezes de parede. A Fase B rotaciona três fatias e pode enfileirá-las na mesma janela; o resultado diz que a URLLC **não paga fila linear** pelas outras duas, e que a proposta tem folga para escalar além de três fatias.
+6. **O custo de rekey simultâneo é sublinear**, então a URLLC não paga fila linear pelas outras fatias e a proposta tem folga para escalar além de três.
 
 ### Resultado da A.5: o custo do PQC no handshake não é de CPU
 

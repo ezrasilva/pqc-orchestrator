@@ -229,8 +229,17 @@ def suspende_dropins_conflitantes() -> list[Path]:
             destino = arquivo.with_suffix(arquivo.suffix + _SUFIXO_SUSPENSO)
             arquivo.rename(destino)
             suspensos.append(destino)
-    if suspensos:
-        emit("phase_a_dropins_suspensos", files=[str(p) for p in suspensos])
+    # Emite SEMPRE, inclusive com a lista vazia. O evento não serve só
+    # para registrar o que foi movido: ele é a PROVA de que esta versão
+    # do código rodou, e portanto que o toggle de make_before_break não
+    # estava sendo anulado por outro drop-in.
+    #
+    # Sem isso, uma execução colhida antes desta correção é
+    # indistinguível de uma correta para quem consolida depois — e as
+    # duas foram somadas por acidente, dobrando o `n` e misturando 120
+    # repetições em que `no` media `yes` com 120 corretas.
+    emit("phase_a_dropins_suspensos", files=[str(p) for p in suspensos],
+         count=len(suspensos))
     return suspensos
 
 

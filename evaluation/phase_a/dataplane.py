@@ -39,7 +39,15 @@ import time
 
 from evaluation.instrumentation import emit
 
-IPERF_PORT = 5202
+# Porta própria, longe das que a A.2 usa (5201 ida, 5202 volta).
+#
+# **Era 5202, a mesma da sonda de volta da A.2.** Duas execuções da A.3
+# lançadas logo depois de uma execução da A.2 falharam inteiras —
+# 0,0 Mbps com `retransmits=None`, não número baixo — porque o servidor
+# residual da A.2 ainda detinha a porta. O sintoma passou pelo
+# consolidador como média de 705,6 Mbps com 300% de variação, em vez de
+# erro.
+IPERF_PORT = 5210
 
 _PING_STATS_RE = re.compile(r"min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+)")
 
@@ -174,6 +182,13 @@ def iperf3_tcp(cu_netns: str, edge_netns: str, source: str, target: str,
     fim = dados.get("end", {})
     recebido = fim.get("sum_received", {})
     enviado = fim.get("sum_sent", {})
+    if not recebido:
+        # Sem `end.sum_received` o iperf3 não produziu resultado algum —
+        # porta ocupada, servidor fora, conexão recusada. Devolver 0 aqui
+        # faria uma FALHA entrar na média como se fosse vazão medida,
+        # que é exatamente o que aconteceu com a porta 5202.
+        return {"erro": "iperf3 não devolveu end.sum_received",
+                "stderr": (cliente.stderr or "").strip()[-300:] or None}
     return {
         "throughput_mbps": recebido.get("bits_per_second", 0) / 1e6,
         "sender_mbps": enviado.get("bits_per_second", 0) / 1e6,
@@ -202,6 +217,9 @@ def measure_one(label: str, cu_netns: str, edge_netns: str,
     emit(
         "phase_a_dataplane",
         label=label,
+        # Explícito, para o consolidador poder descartar falha em vez de
+        # somá-la como medição.
+        ok="erro" not in vazao,
         **(extra or {}),
         **vazao,
         **vazio,

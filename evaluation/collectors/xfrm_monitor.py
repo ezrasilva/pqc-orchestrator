@@ -39,7 +39,9 @@ SA e política se distinguem pela linha de DETALHE seguinte: a de SA traz
 
 from __future__ import annotations
 
+import os
 import re
+import signal
 import subprocess
 import threading
 from typing import Optional
@@ -70,9 +72,25 @@ class XfrmMonitor:
         self._eventos = 0
 
     def start(self) -> None:
+        # `start_new_session` põe o processo num grupo próprio para o
+        # `stop()` poder matar o GRUPO INTEIRO.
+        #
+        # **Por que isso não é detalhe.** `ip netns exec` faz fork+exec,
+        # então o `ip ... xfrm monitor` de verdade é um FILHO do processo
+        # que o Popen controla. Matar só o pai deixa o filho órfão, ligado
+        # ao netns, emitindo eventos para sempre — e esse monitor emite
+        # mais de 99% de ruído (`replay update`) sob tráfego.
+        #
+        # Isto já custou caro: um `ip -ts xfrm monitor` de um teste manual
+        # sobreviveu 1 dia e 4 horas e escreveu **10,9 GB** num arquivo que
+        # havia sido apagado, segurando o espaço pelo descritor aberto. O
+        # `/tmp` desta VM é um tmpfs de 12 GB; ele encheu, e o sintoma não
+        # foi "disco cheio" — foi `EDQUOT` em ferramentas sem relação
+        # nenhuma com o coletor, com os arquivos grandes INVISÍVEIS ao
+        # `find` porque já não tinham nome.
         self._proc = subprocess.Popen(
             self._cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, bufsize=1,
+            text=True, bufsize=1, start_new_session=True,
         )
         self._thread = threading.Thread(target=self._ler, daemon=True)
         self._thread.start()
@@ -98,6 +116,24 @@ class XfrmMonitor:
             else:
                 detalhe.append(linha.strip())
         despacha()
+
+    def _encerra_grupo(self) -> None:
+        """Mata o grupo de processos, não só o pai. Ver `start()`."""
+        assert self._proc is not None
+        try:
+            grupo = os.getpgid(self._proc.pid)
+        except OSError:
+            return  # já morreu
+        for sinal in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(grupo, sinal)
+            except OSError:
+                return
+            try:
+                self._proc.wait(timeout=5)
+                return
+            except subprocess.TimeoutExpired:
+                continue
 
     def _classifica(self, ts: str, cabecalho: str, detalhe: str) -> None:
         for chave in _RUIDO:
@@ -149,11 +185,7 @@ class XfrmMonitor:
 
     def stop(self) -> None:
         if self._proc:
-            self._proc.terminate()
-            try:
-                self._proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._proc.kill()
+            self._encerra_grupo()
         if self._thread:
             self._thread.join(timeout=5)
         if self._emit_noise_summary:

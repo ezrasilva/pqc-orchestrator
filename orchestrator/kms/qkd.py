@@ -48,6 +48,9 @@ from dataclasses import dataclass
 from queue import Empty, Full, Queue
 from typing import Optional
 
+from criticality import ordem_de_prioridade
+from evaluation.instrumentation import emit
+
 from kms.models import SliceType
 
 logger = logging.getLogger(__name__)
@@ -192,22 +195,39 @@ class PpkProvider:
         self._proxima_liberacao = 0.0
 
     def start(self) -> None:
-        for fatia in self._pools:
-            t = threading.Thread(target=self._repor, args=(fatia,),
-                                 name=f"ppk-{fatia.value}", daemon=True)
-            t.start()
-            self._threads[fatia] = t
+        # UMA thread de reposição, não uma por fatia.
+        #
+        # **Por que mudou.** A versão anterior tinha uma thread por fatia
+        # e o limitador agregado as atendia em ROUND-ROBIN, sem
+        # prioridade. O escalonador ordena TAREFAS por criticidade, mas
+        # se o poço da fatia crítica está vazio quando a tarefa dela
+        # roda, ela rebaixa igual — e sob escassez severa todas passam
+        # fome por igual. Medido no C4a da Fase B: a URLLC levou 786
+        # rebaixamentos, contra 19 no C3. Em escassez moderada funcionava
+        # por acidente, porque o `Tr_ppk` da URLLC é o mais curto e ela
+        # colhia mais do round-robin.
+        #
+        # A arquitetura prevê o contrário: I define "a prioridade **e a
+        # partilha de QKD**". Com uma thread só, cada vez que o
+        # limitador libera uma vaga a chave vai para a fatia mais crítica
+        # que ainda tem espaço no poço — ver `_proxima_fatia`.
+        self._stop.clear()
+        t = threading.Thread(target=self._repor_em_prioridade,
+                             name="ppk-repositor", daemon=True)
+        t.start()
+        self._threads["repositor"] = t
 
     def stop(self) -> None:
         self._stop.set()
 
     def _aguarda_vez(self) -> None:
-        """Serializa e espaça os pedidos conforme `R_qkd`.
+        """Espaça os pedidos conforme `R_qkd`.
 
         A espera acontece FORA do lock: segurá-lo durante o sleep faria
-        as outras threads enfileirarem no lock em vez de no tempo, e a
-        ordem de liberação passaria a depender do escalonador de threads
-        em vez da taxa declarada.
+        a ordem de liberação depender do escalonador de threads em vez
+        da taxa declarada. Com uma thread só de reposição o lock é
+        redundante hoje, mas fica porque o `_proxima_liberacao` é estado
+        compartilhado e o custo é nulo.
         """
         if self._intervalo_minimo <= 0:
             return
@@ -222,24 +242,56 @@ class PpkProvider:
             # por até um intervalo inteiro (30 s a 8,5 bit/s).
             self._stop.wait(espera)
 
-    def _repor(self, fatia: SliceType) -> None:
+    def _proxima_fatia(self) -> Optional[SliceType]:
+        """A fatia mais crítica cujo poço ainda tem espaço.
+
+        Prioridade ESTRITA, não proporcional, porque o desempate
+        declarado é lexicográfico e sem pesos. Não causa inanição das
+        menos críticas porque a demanda de cada fatia é LIMITADA pela
+        profundidade do poço: satisfeita a URLLC, a vaga seguinte desce
+        para a próxima da ordem. O excedente escorre, a escassez sobe.
+        """
+        for nome in ordem_de_prioridade():
+            for fatia, fila in self._pools.items():
+                if fatia.value == nome and not fila.full():
+                    return fatia
+        return None
+
+    def _repor_em_prioridade(self) -> None:
         while not self._stop.is_set():
             self._aguarda_vez()
             if self._stop.is_set():
                 return
+            fatia = self._proxima_fatia()
+            if fatia is None:
+                # Todos os poços cheios: espera sem gastar vaga do
+                # limitador, senão a taxa declarada seria consumida sem
+                # produzir chave.
+                self._stop.wait(1.0)
+                continue
             try:
-                chave = self._client.enc_keys(self._slave, PPK_BITS)
+                chave = self._client.enc_keys(self._slave, self._key_bits)
             except Exception:  # noqa: BLE001 — repor é best-effort; o get() reporta a falta
                 logger.exception("falha buscando PPK para %s", fatia.value)
                 self._stop.wait(5.0)
                 continue
             try:
-                # `put` com timeout em vez de bloqueante: com o poço
-                # cheio e `stop()` chamado, um put bloqueante prenderia
-                # a thread para sempre.
                 self._pools[fatia].put(chave, timeout=1.0)
+                emit("ppk_pool_filled", slice=fatia.value,
+                     pool_depth=self._pools[fatia].qsize())
             except Full:
-                self._stop.wait(1.0)
+                # Encheu entre a escolha e a entrega: a chave não se
+                # perde silenciosamente, vai para a próxima com espaço.
+                alternativa = self._proxima_fatia()
+                if alternativa is not None:
+                    try:
+                        self._pools[alternativa].put(chave, timeout=1.0)
+                        emit("ppk_pool_filled", slice=alternativa.value,
+                             pool_depth=self._pools[alternativa].qsize(),
+                             note=f"redirecionada de {fatia.value}")
+                    except Full:
+                        emit("ppk_descartada", slice=fatia.value,
+                             note="todos os poços cheios na entrega")
 
     def get(self, fatia: SliceType, timeout: float = 0.0) -> Optional[QkdKey]:
         """Tira uma chave do poço da fatia. `None` se o poço estiver

@@ -14,10 +14,20 @@ recalculadas — os valores abaixo são a decisão de design desta
 implementação (a arquitetura só diz "favorece URLLC"/"diferencia F1 de
 N2/N3 se a política pedir", sem fixar magnitude):
 
-- slice_bonus: URLLC > eMBB > mIoT — reflete a tabela de perfis PQC
-  (seção 5.1 do ARQUITETURA-PROTOTIPO-COMPLETA.md): URLLC é a única fatia
-  com componente de canal quântico simulado (PPK) e o KEM mais caro
-  (ML-KEM-768), então uma rotação atrasada nela é o pior cenário.
+- slice_bonus: a ORDEM vem do vetor de criticidade (`criticality.py`),
+  pelo desempate lexicográfico I > H > D que o documento da campanha
+  declara — hoje **URLLC > mIoT > eMBB**. As magnitudes seguem sendo
+  constantes de desempate desta implementação, que é o que a
+  arquitetura deixa aberto; o que deixou de ser escolhido à mão é a
+  ordem.
+
+  **Era URLLC > eMBB > mIoT**, herdado da seção 5.1 do
+  ARQUITETURA-PROTOTIPO-COMPLETA.md, anterior ao vetor de criticidade. A
+  divergência apareceu nos dados da Fase B: no C3 a eMBB levou 464
+  chaves de QKD contra 336 da mIoT, o inverso do que o modelo prevê.
+  eMBB e mIoT empatam em I (média) e o desempate é H, onde a mIoT é alta
+  (telemetria com horizonte longo, mais exposta a harvest-now-decrypt-
+  later) contra baixa da eMBB.
 - interface_bonus: N3 > N2 > F1 — N3 é a única interface realmente
   diferenciada por fatia (carrega o dado de usuário até o núcleo); N2 é
   controle, compartilhado entre todas as fatias, sem componente PQC
@@ -33,13 +43,27 @@ from __future__ import annotations
 
 from typing import Callable
 
+from criticality import ordem_de_prioridade
 from scheduler.models import InterfaceType, SchedulingPolicy, SliceType, Task, utcnow
 
-SLICE_BONUS: dict[SliceType, float] = {
-    SliceType.URLLC: 2.0,
-    SliceType.EMBB: 0.5,
-    SliceType.MIOT: 0.0,
-}
+def _slice_bonus() -> dict[SliceType, float]:
+    """Deriva o bônus da ordem de prioridade do vetor de criticidade.
+
+    Escrever o dicionário à mão era o que permitiu a divergência: se os
+    níveis H/I/D de uma fatia mudarem no documento, uma tabela fixa fica
+    errada em silêncio. Derivando, o escalonador acompanha o modelo.
+
+    As magnitudes (2,0 / 1,0 / 0,0) são espaçamento de desempate, não
+    pesos entre as dimensões de criticidade — essas já foram resolvidas
+    lexicograficamente antes de chegar aqui.
+    """
+    ordem = ordem_de_prioridade()
+    por_nome = {s.value: s for s in SliceType}
+    return {por_nome[nome]: float(len(ordem) - 1 - i)
+            for i, nome in enumerate(ordem) if nome in por_nome}
+
+
+SLICE_BONUS: dict[SliceType, float] = _slice_bonus()
 
 INTERFACE_BONUS: dict[InterfaceType, float] = {
     InterfaceType.N3: 0.5,

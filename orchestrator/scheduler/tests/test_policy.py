@@ -11,7 +11,8 @@ from scheduler.models import (
     TaskType,
     utcnow,
 )
-from scheduler.policy import AGING_RATE_PER_SECOND, compute_risk, sort_key
+from criticality import ordem_de_prioridade
+from scheduler.policy import AGING_RATE_PER_SECOND, SLICE_BONUS, compute_risk, sort_key
 
 
 def _task(**overrides) -> Task:
@@ -38,12 +39,27 @@ def test_negative_slack_increases_risk():
     assert compute_risk(overdue, now=now) > compute_risk(on_time, now=now)
 
 
-def test_slice_bonus_favors_urllc():
-    urllc = _task(slice=SliceType.URLLC)
-    embb = _task(slice=SliceType.EMBB)
-    miot = _task(slice=SliceType.MIOT)
+def test_slice_bonus_segue_o_vetor_de_criticidade():
+    """A ordem é URLLC > mIoT > eMBB, derivada do vetor I > H > D.
+
+    **Invertido em 21/10.** A versão anterior afirmava
+    URLLC > eMBB > mIoT, herdado de um documento anterior ao vetor de
+    criticidade. eMBB e mIoT empatam em I (média) e o desempate é H: a
+    mIoT tem H alta (telemetria com horizonte de confidencialidade
+    longo, mais exposta a harvest-now-decrypt-later) contra H baixa da
+    eMBB. A divergência apareceu nos dados da Fase B — no C3 a eMBB
+    levou 464 chaves de QKD contra 336 da mIoT, o inverso do previsto.
+
+    O teste compara contra `ordem_de_prioridade()` em vez de fixar a
+    sequência: se os níveis mudarem no documento, o teste acompanha em
+    vez de virar uma segunda fonte de verdade divergente.
+    """
     now = utcnow()
-    assert compute_risk(urllc, now=now) > compute_risk(embb, now=now) > compute_risk(miot, now=now)
+    riscos = [compute_risk(_task(slice=SliceType(nome)), now=now)
+              for nome in ordem_de_prioridade()]
+    assert riscos == sorted(riscos, reverse=True), (
+        f"risco deveria cair na ordem {ordem_de_prioridade()}, veio {riscos}")
+    assert len(set(riscos)) == len(riscos), "fatias distintas não devem empatar"
 
 
 def test_interface_bonus_favors_n3_over_f1():
@@ -64,7 +80,10 @@ def test_zero_cost_does_not_crash_and_drops_urgency_term():
     task = _task(estimated_cost_seconds=0.0, slack_seconds=-999.0)
     # não deve levantar ZeroDivisionError; a parcela de urgência vira 0
     risk = compute_risk(task, now=task.enqueued_at)
-    assert risk == 0.0 + 0.5  # só slice_bonus(EMBB) + interface_bonus(F1)=0 + aging=0
+    # Só slice_bonus(EMBB) + interface_bonus(F1)=0 + aging=0. O valor
+    # vem da tabela derivada, não de uma constante repetida aqui — foi
+    # repetir o número que fez este teste quebrar quando a ordem mudou.
+    assert risk == SLICE_BONUS[SliceType.EMBB]
 
 
 def test_sort_key_risk_aware_is_descending_risk():

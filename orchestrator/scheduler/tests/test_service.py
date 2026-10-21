@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import pytest
 
+from scheduler.policy import SLICE_BONUS
 from scheduler.exceptions import TaskNotFoundError
 from scheduler.models import (
     EnqueueTaskRequest,
@@ -29,9 +30,13 @@ def _req(**overrides) -> EnqueueTaskRequest:
 
 def test_enqueue_computes_risk_score(core):
     task = core.enqueue_task(_req())
-    # slack=0 -> urgência 0; EMBB slice_bonus=0.5; F1 interface_bonus=0;
-    # aging ~0 (acabou de entrar na fila).
-    assert task.risk_score == pytest.approx(0.5, abs=0.01)
+    # slack=0 -> urgência 0; F1 interface_bonus=0; aging ~0 (acabou de
+    # entrar na fila). Sobra o slice_bonus da eMBB, lido da tabela
+    # derivada do vetor de criticidade em vez de repetido aqui — repetir
+    # o número é o que fez este teste quebrar quando a ordem de
+    # prioridade passou a sair do vetor (URLLC > mIoT > eMBB).
+    assert task.risk_score == pytest.approx(
+        SLICE_BONUS[SliceType.EMBB], abs=0.01)
     assert task.task_id.startswith("task-")
 
 

@@ -85,13 +85,36 @@ def carrega(caminho: Path, prefixo: str) -> dict:
         cond = "contaminada"
     elif not latencias:
         cond = "sem_trafego"
+    elif len([e for e in eventos
+              if e.get("event") == "throughput_probe_summary"]) < 2:
+        # O plano de tráfego tem três sondas: latência na URLLC e vazão
+        # na eMBB e na mIoT. Menos de dois resumos de vazão significa que
+        # uma sonda não terminou, e a execução está incompleta mesmo que
+        # a janela tenha fechado.
+        #
+        # **Por que isto é um filtro próprio.** O `radio_degradado`
+        # compara a vazão da eMBB com um limiar, e não dispara quando o
+        # resumo SIMPLESMENTE NÃO EXISTE. Medido: duas execuções do C0
+        # tinham um resumo só, e uma delas era a de latência mediana de
+        # 800 ms — passava pelo filtro de rádio por falta do dado em que
+        # ele se baseia. Ausência de dado não pode ser tratada como
+        # ausência de problema.
+        cond = "sonda_incompleta"
     elif embb and embb[0] < EMBB_MBPS_MINIMO:
         cond = "radio_degradado"
     else:
         cond = "valida"
 
+    # A política vem do próprio dado (`scenario_config`, emitido pelo
+    # runner), não de janelas de tempo que eu teria de acertar à mão —
+    # delimitar blocos por epoch já me fez consolidar 119 arquivos
+    # quando eram 181.
+    cfg = [e for e in eventos if e.get("event") == "scenario_config"]
+    politica = cfg[0].get("policy") if cfg else None
+
     return {"arquivo": caminho.name, "eventos": eventos, "contadores": c,
-            "condicao": cond, "latencias": latencias, "embb": embb}
+            "condicao": cond, "latencias": latencias, "embb": embb,
+            "politica": politica}
 
 
 def tabela_desempenho(por_cenario: dict) -> str:
@@ -124,6 +147,44 @@ def tabela_desempenho(por_cenario: dict) -> str:
             f"| {nome} | {len(runs)} | {med(n3p50):.3f} ms | {med(n3p99):.3f} ms | "
             f"{med(up50):.1f} ms | {med(up95):.1f} ms | {med(embb):.2f} Mbps | "
             f"{med(miot):.2f}% |")
+    return "\n".join(linhas) + "\n"
+
+
+def tabela_politicas(por_cenario: dict) -> str:
+    """Compara risk-aware com EDF nos cenários que têm disputa.
+
+    Só C4a e C4b rodam nas duas políticas, e isso é deliberado: sem
+    disputa a fila tem no máximo uma tarefa e as duas políticas chegam à
+    mesma ordem, então comparar nos outros cenários não mediria nada.
+    """
+    por_pol: dict[tuple, list] = defaultdict(list)
+    for pref, runs in por_cenario.items():
+        for r in runs:
+            if r["politica"]:
+                por_pol[(pref, r["politica"])].append(r)
+    alvos = [(n, p) for n, p in CENARIOS
+             if len({k[1] for k in por_pol if k[0] == p}) > 1]
+    if not alvos:
+        return ""
+
+    linhas = ["### Risk-aware contra EDF, sob disputa", "",
+              "Média entre execuções ± IC95. A política ordena TAREFAS; ela não "
+              "muda quanta entropia se consome, e é por isso que o efeito aparece "
+              "na latência da URLLC e não na contagem de PPK.", "",
+              "| Cenário | Política | n | URLLC p50 | URLLC p95 | rebaixamentos | PPK obtido |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
+    for nome, pref in alvos:
+        for pol in sorted({k[1] for k in por_pol if k[0] == pref}):
+            runs = por_pol[(pref, pol)]
+            p50 = [st.median(r["latencias"]) for r in runs]
+            p95 = [pct(r["latencias"], .95) for r in runs]
+            reb = [r["contadores"].get("rotation_downgraded", 0) for r in runs]
+            ppk = [r["contadores"].get("ppk_fetched", 0) for r in runs]
+            ic = lambda v: 1.96 * st.stdev(v) / len(v) ** 0.5 if len(v) > 1 else 0.0
+            linhas.append(
+                f"| {nome} | {pol} | {len(runs)} | {st.fmean(p50):.2f} ± {ic(p50):.2f} ms | "
+                f"{st.fmean(p95):.1f} ± {ic(p95):.1f} ms | {st.median(reb):.0f} | "
+                f"{st.median(ppk):.0f} |")
     return "\n".join(linhas) + "\n"
 
 
@@ -217,6 +278,7 @@ def main() -> int:
         tabela_desempenho(por_cenario),
         tabela_rotacao(por_cenario),
         tabela_entropia_por_fatia(por_cenario),
+        tabela_politicas(por_cenario),
     ])
     if args.saida:
         args.saida.write_text(texto)

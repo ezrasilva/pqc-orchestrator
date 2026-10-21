@@ -286,7 +286,33 @@ class RotationDriver:
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
+    # Tempo máximo de espera pela thread no `stop()`. Generoso de
+    # propósito: um tick pode estar no meio de um reauth, e o agente
+    # espera até `_APPLY_TIMEOUT_SECONDS` (60 s) pela SA nova.
+    #
+    # **Era `interval + 2` = 4 s, e isso produzia dois defeitos.** Com o
+    # join estourando, o `stop()` retornava com o tick ainda vivo; o
+    # `finally` do runner fechava o banco do KMS em seguida e o tick
+    # morria com `ProgrammingError: Cannot operate on a closed
+    # database` (7 ocorrências na campanha). Pior: como o destino da
+    # instrumentação é global do módulo, a thread sobrevivente escrevia
+    # no `.jsonl` da execução SEGUINTE — medido, 2 arquivos de C1
+    # ganharam um `reauth_end` que não era deles. C1 não tem driver de
+    # rotação, então o evento era impossível por construção, e foi isso
+    # que denunciou.
+    STOP_TIMEOUT_SECONDS = 75.0
+
     def stop(self) -> None:
         self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=self._interval + 2)
+        if self._thread is None:
+            return
+        self._thread.join(timeout=self.STOP_TIMEOUT_SECONDS)
+        if self._thread.is_alive():
+            # Não dá para matar uma thread em Python. Registrar é o que
+            # resta — e é melhor que o silêncio: quem analisar sabe que
+            # aquela execução pode ter eventos de uma thread que
+            # sobreviveu, e o consolidador pode descartá-la.
+            emit("rotation_driver_stop_timeout",
+                 timeout_seconds=self.STOP_TIMEOUT_SECONDS,
+                 note="thread do driver não encerrou; eventos posteriores podem "
+                      "vazar para a próxima execução")

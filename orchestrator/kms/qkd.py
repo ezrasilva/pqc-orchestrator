@@ -168,7 +168,9 @@ class PpkProvider:
         self._depth = depth
         self._pools: dict[SliceType, Queue[QkdKey]] = {
             s: Queue(maxsize=depth) for s in slices}
-        self._threads: dict[SliceType, threading.Thread] = {}
+        # Uma thread só desde a reposição por prioridade; o dict fica
+        # porque o `start()` registra por nome para diagnóstico.
+        self._threads: dict[str, threading.Thread] = {}
         self._stop = threading.Event()
 
         # Limitador de taxa AGREGADO, modelando uma fonte de QKD única
@@ -218,7 +220,38 @@ class PpkProvider:
         self._threads["repositor"] = t
 
     def stop(self) -> None:
+        """Para a reposição e ESPERA a thread encerrar.
+
+        **Esperar não é zelo, é correção.** A versão anterior só setava
+        o evento e voltava. A thread costuma estar bloqueada numa
+        chamada HTTP ao `enc_keys`, que dura de 6 a 38 s conforme a
+        carga do hospedeiro; ao voltar, ela escrevia no `.jsonl` da
+        execução SEGUINTE, porque o destino da instrumentação é global
+        do módulo e já havia sido reconfigurado.
+
+        Medido no smoke test de revisão: o arquivo do C0 — cenário que
+        não tem orquestrador nem poço de PPK — recebeu um
+        `ppk_pool_filled` da execução anterior. O evento é impossível
+        por construção ali, e foi isso que denunciou. Mesma classe do
+        vazamento já corrigido no `rotation_driver`.
+
+        Na prática a espera é curta: a thread passa a maior parte do
+        tempo em `self._stop.wait()`, que retorna de imediato quando o
+        evento é setado. O limite só é alcançado se ela estiver no meio
+        de um pedido à QKDN.
+        """
         self._stop.set()
+        t = self._threads.get("repositor")
+        if t is None:
+            return
+        # Limite acima do timeout do cliente HTTP, senão a espera
+        # terminaria antes do pior caso possível da chamada.
+        limite = self._client.timeout + 5 if hasattr(self._client, "timeout") else 125.0
+        t.join(timeout=limite)
+        if t.is_alive():
+            emit("ppk_provider_stop_timeout", timeout_seconds=limite,
+                 note="thread de reposição não encerrou; eventos posteriores "
+                      "podem vazar para a próxima execução")
 
     def _aguarda_vez(self) -> None:
         """Espaça os pedidos conforme `R_qkd`.
@@ -255,19 +288,40 @@ class PpkProvider:
             for fatia, fila in self._pools.items():
                 if fatia.value == nome and not fila.full():
                     return fatia
+        # Rede de segurança: uma fatia ausente da tabela de criticidade
+        # não apareceria no laço acima e NUNCA receberia chave — fome
+        # silenciosa, do tipo que só se descobre olhando o dado. Atender
+        # por último é melhor que não atender.
+        for fatia, fila in self._pools.items():
+            if not fila.full():
+                logger.warning("fatia %s não está na tabela de criticidade; "
+                               "atendida por último", fatia.value)
+                return fatia
         return None
 
     def _repor_em_prioridade(self) -> None:
         while not self._stop.is_set():
+            # Verifica espaço ANTES de consumir vaga do limitador.
+            #
+            # A ordem inversa (esperar e depois verificar) queima vaga
+            # quando todos os poços estão cheios, e a taxa declarada
+            # deixa de corresponder às chaves entregues: a 8,5 bit/s uma
+            # vaga vale 30 s, então cada verificação a seco atrasa a
+            # próxima chave real por esse tempo.
+            if self._proxima_fatia() is None:
+                self._stop.wait(0.5)
+                continue
+
             self._aguarda_vez()
             if self._stop.is_set():
                 return
+            # Reavalia DEPOIS da espera: a 8,5 bit/s ela dura 30 s, e
+            # nesse intervalo a fatia mais crítica com espaço pode ter
+            # mudado — foi uma rotação consumir a chave dela, por
+            # exemplo. Escolher antes de esperar entregaria a chave pela
+            # prioridade de 30 s atrás.
             fatia = self._proxima_fatia()
             if fatia is None:
-                # Todos os poços cheios: espera sem gastar vaga do
-                # limitador, senão a taxa declarada seria consumida sem
-                # produzir chave.
-                self._stop.wait(1.0)
                 continue
             try:
                 chave = self._client.enc_keys(self._slave, self._key_bits)

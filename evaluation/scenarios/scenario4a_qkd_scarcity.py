@@ -42,6 +42,11 @@ r_qkd_bits_per_second = 8.5
 def setup() -> None:
     """Igual ao C3 — mesma topologia, mesmos perfis por fatia. A única
     diferença do cenário está na taxa de QKD."""
+    # Garante o perfil por-fatia versionado ANTES de medir. C1 e C2
+    # mutam o connections.conf vivo e desfazem no teardown; uma campanha
+    # interrompida no meio de um deles deixaria este cenário medindo o
+    # perfil do anterior, em silêncio. Custo nulo quando já está certo.
+    lab_control.ensure_versioned_n3_config()
     lab_control.restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
     lab_control.load_and_initiate_n3()
     lab_control.capture_and_apply_slice_marks()

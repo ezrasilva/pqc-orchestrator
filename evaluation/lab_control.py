@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from evaluation.collectors.resource import find_charon_pid
+from evaluation.instrumentation import emit
 
 
 def _real_home() -> Path:
@@ -197,6 +198,49 @@ def apply_uniform_n3_profile(ike_proposal: str, esp_proposal: str) -> None:
         caminho.write_text("\n".join(linhas) + "\n")
     restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
     load_and_initiate_n3()
+
+
+def ensure_versioned_n3_config() -> bool:
+    """Garante que a config por-fatia versionada está no lugar.
+
+    Devolve `True` se precisou restaurar.
+
+    **Por que isto existe.** Dois cenários MUTAM o `connections.conf`
+    vivo: o C1 escreve um túnel único e o C2 aplica perfil uniforme nas
+    três fatias. Os dois desfazem no `teardown`, mas um `teardown` só
+    roda se o `setup` e a janela terminarem — uma campanha interrompida
+    no meio de um C1 ou C2 deixa a config alterada, e o C3 seguinte
+    mediria o perfil do cenário anterior **em silêncio**, produzindo
+    números plausíveis e errados.
+    
+    Essa é a classe de defeito mais caro desta campanha: já aconteceu
+    com o toggle de `make_before_break` anulado por um drop-in e com o
+    banco do KMS vazando estado entre iterações. Nos dois casos o
+    sintoma só apareceu na análise, depois de horas de coleta.
+
+    **Por que comparar com o git e não guardar backup.** O
+    `connections.conf` É versionado em `~/oai-lab-conf`, então a fonte
+    de verdade sobrevive ao processo que a alterou — o que um backup em
+    memória não faz. Quando a config já está correta o custo é ler dois
+    arquivos, então dá para chamar no `setup` de todo cenário sem pagar
+    reinício de IPsec.
+    """
+    diferente = False
+    for lado in ("swanctl-cu", "swanctl-edge"):
+        rel = f"{lado}/conf.d/connections.conf"
+        esperado = subprocess.run(
+            ["git", "-C", str(LIVE_LAB_IPSEC_DIR), "show", f"HEAD:{rel}"],
+            capture_output=True, text=True, check=True).stdout
+        atual = (LIVE_LAB_IPSEC_DIR / lado / "conf.d" / "connections.conf").read_text()
+        if atual != esperado:
+            diferente = True
+    if not diferente:
+        return False
+    emit("n3_config_restaurada",
+         note="a config viva divergia da versionada — provável campanha "
+              "interrompida durante C1 ou C2, que mutam o connections.conf")
+    restore_versioned_n3_config()
+    return True
 
 
 def restore_versioned_n3_config() -> None:

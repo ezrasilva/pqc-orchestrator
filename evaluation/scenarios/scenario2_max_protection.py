@@ -51,6 +51,11 @@ tr_ppk = {s: TR_PPK_SECONDS[SliceType.URLLC] for s in SliceType}
 
 
 def setup() -> None:
+    # Garante o perfil por-fatia versionado ANTES de medir. C1 e C2
+    # mutam o connections.conf vivo e desfazem no teardown; uma campanha
+    # interrompida no meio de um deles deixaria este cenário medindo o
+    # perfil do anterior, em silêncio. Custo nulo quando já está certo.
+    lab_control.ensure_versioned_n3_config()
     lab_control.restart_ipsec_lab(("cu-ns", "5gc-edge-ns"))
     lab_control.load_and_initiate_n3()
     # Depois do load: aplicar o perfil uniforme reinicia o IPsec de novo,

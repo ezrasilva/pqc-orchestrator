@@ -150,6 +150,82 @@ def tabela_desempenho(por_cenario: dict) -> str:
     return "\n".join(linhas) + "\n"
 
 
+# Marks do `mangle` por fatia (ver lab/ipsec/apply-n3-slice-marks.sh).
+MARK_POR_FATIA = {"0x10": "URLLC", "0x20": "EMBB", "0x30": "MIOT"}
+
+
+def tabela_isolamento(por_cenario: dict) -> str:
+    """Métrica B.3 — cada fatia só sai pela SA dela.
+
+    **Como a comparação é feita.** O `classification_snapshot` conta
+    pacotes no `mangle`, ANTES de cifrar, por mark de fatia. O
+    `xfrm_snapshot` conta por SPI, DEPOIS de cifrar, e cada SA carrega o
+    mark da fatia dela. Isolamento perfeito significa que os pacotes
+    marcados para uma fatia aparecem só nas SAs com aquele mark, e em
+    igual número.
+
+    **Somar o pico de CADA SPI, não o máximo entre eles.** Os contadores
+    são monotônicos por SPI, mas a rotação cria SPIs novas ao longo da
+    janela: uma execução de 300 s com `Tr_child` de 12 s passa por
+    dezenas. Tomar o máximo entre SPIs contaria só a última e produziria
+    um déficit enorme — erro que eu já cometi numa análise anterior
+    desta campanha e que gerou um falso alarme de degradação.
+
+    **A folga esperada não é zero.** A classificação conta antes de
+    cifrar e a SA depois, então pacotes em trânsito no kernel no instante
+    da leitura final aparecem num contador e não no outro. Medido na
+    campanha anterior: ~0,1% em teste isolado, e foi investigar os 2-3%
+    da campanha automática que revelou o poller a 0,5 s ser lento demais
+    para a frequência de rotação (hoje roda a 0,1 s).
+
+    Só SAs de SAÍDA entram: as de entrada deste lado vêm sem mark e com
+    zero pacotes, e somá-las diluiria a razão.
+    """
+    linhas = ["### Isolamento: cada fatia sai pela SA dela (B.3)", "",
+              "`classificados` conta no `mangle` antes de cifrar; `cifrados` soma o "
+              "pico de cada SPI com o mark da fatia, depois de cifrar. A folga vem de "
+              "pacotes em trânsito entre os dois pontos de contagem.", "",
+              "| Cenário | Fatia | classificados | cifrados | folga | SPIs | SPI com 2 marks |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
+    for nome, pref in CENARIOS:
+        runs = por_cenario.get(pref, [])
+        if not runs:
+            continue
+        for mark, fatia in sorted(MARK_POR_FATIA.items()):
+            classificados = cifrados = spis = conflitos = 0
+            for r in runs:
+                # Classificação: o contador é monotônico, então o último
+                # valor da janela é o total daquela execução.
+                ultimo = {}
+                picos: dict[str, int] = {}
+                marks_por_spi: dict[str, set] = defaultdict(set)
+                for e in r["eventos"]:
+                    ev = e.get("event")
+                    if ev == "classification_snapshot" and e.get("mark") == mark:
+                        ultimo[mark] = e.get("packets", 0)
+                    elif ev == "xfrm_snapshot":
+                        spi, m = e.get("spi"), e.get("mark")
+                        if not spi or not m:
+                            continue  # SA de entrada, sem mark
+                        marks_por_spi[spi].add(m)
+                        if m == mark:
+                            picos[spi] = max(picos.get(spi, 0), e.get("packets", 0))
+                classificados += ultimo.get(mark, 0)
+                cifrados += sum(picos.values())
+                spis += len(picos)
+                conflitos += sum(1 for ms in marks_por_spi.values() if len(ms) > 1)
+            if not classificados and not cifrados:
+                continue
+            folga = (100.0 * (classificados - cifrados) / classificados
+                     if classificados else 0.0)
+            linhas.append(
+                f"| {nome if mark == '0x10' else ''} | {fatia} | {classificados} | "
+                f"{cifrados} | {folga:+.2f}% | {spis} | {conflitos} |")
+    linhas += ["", "`SPI com 2 marks` deve ser **zero**: um SPI que carregasse duas "
+               "fatias seria vazamento de isolamento, não imprecisão de contagem.", ""]
+    return "\n".join(linhas)
+
+
 def tabela_politicas(por_cenario: dict) -> str:
     """Compara risk-aware com EDF nos cenários que têm disputa.
 
@@ -279,6 +355,7 @@ def main() -> int:
         tabela_rotacao(por_cenario),
         tabela_entropia_por_fatia(por_cenario),
         tabela_politicas(por_cenario),
+        tabela_isolamento(por_cenario),
     ])
     if args.saida:
         args.saida.write_text(texto)

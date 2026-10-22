@@ -58,223 +58,147 @@ def pct(valores, q):
 
 
 def carrega(caminho: Path, prefixo: str) -> dict:
-    eventos = []
+    """Lê um arquivo UMA VEZ, agrega o que as tabelas precisam e DESCARTA
+    os eventos.
+
+    **Por que não guardar os eventos.** A primeira versão retinha a lista
+    completa de cada execução e cada tabela fazia a própria passagem. Com
+    223 execuções de ~26 mil eventos são ~5,8 milhões de dicts vivos ao
+    mesmo tempo, vários GB, e a tabela de isolamento sozinha fazia 18
+    passagens (6 cenários × 3 marks) sobre tudo isso. Medido: a
+    consolidação passou de 8 minutos para **quase 3 horas** e foi morta
+    sem terminar.
+
+    Agregar na leitura resolve as duas coisas de uma vez — memória
+    constante por arquivo e uma passagem só.
+
+    As latências ficam retidas (3 mil por execução) porque percentis
+    exigem a amostra; o resto vira contador.
+    """
+    contadores: Counter = Counter()
+    latencias: list[float] = []
+    embb: list[float] = []
+    miot: list[float] = []
+    n3: dict[str, float] = {}
+    politica = None
+    por_fatia: dict[str, Counter] = defaultdict(Counter)
+    resumos_vazao = 0
+    # Isolamento: último valor por mark (contador monotônico) e pico por
+    # SPI. Somar o pico de CADA SPI e não o máximo entre eles — a rotação
+    # cria dezenas de SPIs numa janela de 300 s.
+    classificados: dict[str, int] = {}
+    picos_spi: dict[str, dict[str, int]] = defaultdict(dict)
+    marks_por_spi: dict[str, set] = defaultdict(set)
+
     for linha in caminho.open():
         linha = linha.strip()
         if not linha:
             continue
         try:
-            eventos.append(json.loads(linha))
+            e = json.loads(linha)
         except json.JSONDecodeError:
-            continue  # linha truncada por interrupção; descartar a linha, não o arquivo
-    c = Counter(e.get("event") for e in eventos)
+            continue  # linha truncada por interrupção; descarta a linha
+        ev = e.get("event")
+        contadores[ev] += 1
 
-    latencias = [e["rtt_ms"] for e in eventos
-                 if e.get("event") == "latency_sample" and e.get("rtt_ms") is not None]
-    embb = [e["mbps"] for e in eventos
-            if e.get("event") == "throughput_probe_summary" and e.get("label") == "embb"]
+        if ev == "latency_sample":
+            if e.get("rtt_ms") is not None:
+                latencias.append(e["rtt_ms"])
+        elif ev == "throughput_probe_summary":
+            resumos_vazao += 1
+            if e.get("label") == "embb":
+                embb.append(e.get("mbps", 0.0))
+            elif e.get("label") == "miot" and e.get("lost_percent") is not None:
+                miot.append(e["lost_percent"])
+        elif ev == "n3_latency_summary":
+            n3 = {"p50": e.get("rtt_p50_ms"), "p99": e.get("rtt_p99_ms")}
+        elif ev == "scenario_config":
+            politica = e.get("policy")
+        elif ev in ("ppk_fetched", "rotation_downgraded", "ppk_pool_empty"):
+            por_fatia[e.get("slice")][ev] += 1
+        elif ev == "classification_snapshot":
+            m = e.get("mark")
+            if m:
+                classificados[m] = e.get("packets", 0)
+        elif ev == "xfrm_snapshot":
+            spi, m = e.get("spi"), e.get("mark")
+            if spi and m:  # sem mark = SA de entrada deste lado
+                marks_por_spi[spi].add(m)
+                atual = picos_spi[m].get(spi, 0)
+                picos_spi[m][spi] = max(atual, e.get("packets", 0))
 
-    if not c.get("run_window_end"):
+    if not contadores.get("run_window_end"):
         cond = "incompleta"
-    elif c.get("rotation_tick_failed"):
+    elif contadores.get("rotation_tick_failed"):
         cond = "tick_falhou"
-    elif c.get("rotation_driver_stop_timeout"):
+    elif contadores.get("rotation_driver_stop_timeout") or contadores.get(
+            "ppk_provider_stop_timeout"):
         cond = "thread_vazou"
     elif prefixo in SEM_ORQUESTRADOR and any(
-            k and k.startswith(("rotation_", "ppk_", "reauth", "child_rekey")) for k in c):
+            k and k.startswith(("rotation_", "ppk_", "reauth", "child_rekey"))
+            for k in contadores):
         cond = "contaminada"
     elif not latencias:
         cond = "sem_trafego"
-    elif len([e for e in eventos
-              if e.get("event") == "throughput_probe_summary"]) < 2:
-        # O plano de tráfego tem três sondas: latência na URLLC e vazão
-        # na eMBB e na mIoT. Menos de dois resumos de vazão significa que
-        # uma sonda não terminou, e a execução está incompleta mesmo que
-        # a janela tenha fechado.
-        #
-        # **Por que isto é um filtro próprio.** O `radio_degradado`
-        # compara a vazão da eMBB com um limiar, e não dispara quando o
-        # resumo SIMPLESMENTE NÃO EXISTE. Medido: duas execuções do C0
-        # tinham um resumo só, e uma delas era a de latência mediana de
-        # 800 ms — passava pelo filtro de rádio por falta do dado em que
-        # ele se baseia. Ausência de dado não pode ser tratada como
-        # ausência de problema.
+    elif resumos_vazao < 2:
         cond = "sonda_incompleta"
     elif embb and embb[0] < EMBB_MBPS_MINIMO:
         cond = "radio_degradado"
     else:
         cond = "valida"
 
-    # A política vem do próprio dado (`scenario_config`, emitido pelo
-    # runner), não de janelas de tempo que eu teria de acertar à mão —
-    # delimitar blocos por epoch já me fez consolidar 119 arquivos
-    # quando eram 181.
-    cfg = [e for e in eventos if e.get("event") == "scenario_config"]
-    politica = cfg[0].get("policy") if cfg else None
+    return {
+        "arquivo": caminho.name, "contadores": contadores, "condicao": cond,
+        "latencias": latencias, "embb": embb, "miot": miot, "n3": n3,
+        "politica": politica, "por_fatia": por_fatia,
+        "classificados": classificados,
+        "cifrados": {m: sum(d.values()) for m, d in picos_spi.items()},
+        "spis": {m: len(d) for m, d in picos_spi.items()},
+        "conflitos": sum(1 for ms in marks_por_spi.values() if len(ms) > 1),
+    }
 
-    return {"arquivo": caminho.name, "eventos": eventos, "contadores": c,
-            "condicao": cond, "latencias": latencias, "embb": embb,
-            "politica": politica}
+
+def _med(valores):
+    return st.median(valores) if valores else float("nan")
+
+
+def _ic(valores):
+    return 1.96 * st.stdev(valores) / len(valores) ** 0.5 if len(valores) > 1 else 0.0
 
 
 def tabela_desempenho(por_cenario: dict) -> str:
     linhas = ["### Desempenho por cenário", "",
               "Mediana entre execuções válidas. `N3` é a sonda de alta resolução no "
-              "túnel (0,1 ms de piso); o fim a fim atravessa o rádio ZMQ, cujo piso é "
-              "~54 ms e cuja cauda domina qualquer p99.", "",
-              "| Cenário | n | N3 p50 | N3 p99 | URLLC fim a fim p50 | URLLC p95 | eMBB | mIoT perda |",
+              "túnel (0,05 ms de piso); o fim a fim atravessa o rádio ZMQ, cujo piso é "
+              "~55 ms e cuja cauda domina qualquer p99.", "",
+              "| Cenário | n | N3 p50 | N3 p99 | URLLC p50 | URLLC p95 | eMBB | mIoT perda |",
               "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for nome, pref in CENARIOS:
         runs = por_cenario.get(pref, [])
         if not runs:
             continue
-        n3p50, n3p99, up50, up95, embb, miot = [], [], [], [], [], []
-        for r in runs:
-            s = [e for e in r["eventos"] if e.get("event") == "n3_latency_summary"]
-            if s:
-                n3p50.append(s[0]["rtt_p50_ms"]); n3p99.append(s[0]["rtt_p99_ms"])
-            if r["latencias"]:
-                up50.append(st.median(r["latencias"])); up95.append(pct(r["latencias"], .95))
-            if r["embb"]:
-                embb.append(r["embb"][0])
-            m = [e["lost_percent"] for e in r["eventos"]
-                 if e.get("event") == "throughput_probe_summary"
-                 and e.get("label") == "miot" and e.get("lost_percent") is not None]
-            if m:
-                miot.append(m[0])
-        med = lambda v: st.median(v) if v else float("nan")
         linhas.append(
-            f"| {nome} | {len(runs)} | {med(n3p50):.3f} ms | {med(n3p99):.3f} ms | "
-            f"{med(up50):.1f} ms | {med(up95):.1f} ms | {med(embb):.2f} Mbps | "
-            f"{med(miot):.2f}% |")
-    return "\n".join(linhas) + "\n"
-
-
-# Marks do `mangle` por fatia (ver lab/ipsec/apply-n3-slice-marks.sh).
-MARK_POR_FATIA = {"0x10": "URLLC", "0x20": "EMBB", "0x30": "MIOT"}
-
-
-def tabela_isolamento(por_cenario: dict) -> str:
-    """Métrica B.3 — cada fatia só sai pela SA dela.
-
-    **Como a comparação é feita.** O `classification_snapshot` conta
-    pacotes no `mangle`, ANTES de cifrar, por mark de fatia. O
-    `xfrm_snapshot` conta por SPI, DEPOIS de cifrar, e cada SA carrega o
-    mark da fatia dela. Isolamento perfeito significa que os pacotes
-    marcados para uma fatia aparecem só nas SAs com aquele mark, e em
-    igual número.
-
-    **Somar o pico de CADA SPI, não o máximo entre eles.** Os contadores
-    são monotônicos por SPI, mas a rotação cria SPIs novas ao longo da
-    janela: uma execução de 300 s com `Tr_child` de 12 s passa por
-    dezenas. Tomar o máximo entre SPIs contaria só a última e produziria
-    um déficit enorme — erro que eu já cometi numa análise anterior
-    desta campanha e que gerou um falso alarme de degradação.
-
-    **A folga esperada não é zero.** A classificação conta antes de
-    cifrar e a SA depois, então pacotes em trânsito no kernel no instante
-    da leitura final aparecem num contador e não no outro. Medido na
-    campanha anterior: ~0,1% em teste isolado, e foi investigar os 2-3%
-    da campanha automática que revelou o poller a 0,5 s ser lento demais
-    para a frequência de rotação (hoje roda a 0,1 s).
-
-    Só SAs de SAÍDA entram: as de entrada deste lado vêm sem mark e com
-    zero pacotes, e somá-las diluiria a razão.
-    """
-    linhas = ["### Isolamento: cada fatia sai pela SA dela (B.3)", "",
-              "`classificados` conta no `mangle` antes de cifrar; `cifrados` soma o "
-              "pico de cada SPI com o mark da fatia, depois de cifrar. A folga vem de "
-              "pacotes em trânsito entre os dois pontos de contagem.", "",
-              "| Cenário | Fatia | classificados | cifrados | folga | SPIs | SPI com 2 marks |",
-              "| --- | --- | --- | --- | --- | --- | --- |"]
-    for nome, pref in CENARIOS:
-        runs = por_cenario.get(pref, [])
-        if not runs:
-            continue
-        for mark, fatia in sorted(MARK_POR_FATIA.items()):
-            classificados = cifrados = spis = conflitos = 0
-            for r in runs:
-                # Classificação: o contador é monotônico, então o último
-                # valor da janela é o total daquela execução.
-                ultimo = {}
-                picos: dict[str, int] = {}
-                marks_por_spi: dict[str, set] = defaultdict(set)
-                for e in r["eventos"]:
-                    ev = e.get("event")
-                    if ev == "classification_snapshot" and e.get("mark") == mark:
-                        ultimo[mark] = e.get("packets", 0)
-                    elif ev == "xfrm_snapshot":
-                        spi, m = e.get("spi"), e.get("mark")
-                        if not spi or not m:
-                            continue  # SA de entrada, sem mark
-                        marks_por_spi[spi].add(m)
-                        if m == mark:
-                            picos[spi] = max(picos.get(spi, 0), e.get("packets", 0))
-                classificados += ultimo.get(mark, 0)
-                cifrados += sum(picos.values())
-                spis += len(picos)
-                conflitos += sum(1 for ms in marks_por_spi.values() if len(ms) > 1)
-            if not classificados and not cifrados:
-                continue
-            folga = (100.0 * (classificados - cifrados) / classificados
-                     if classificados else 0.0)
-            linhas.append(
-                f"| {nome if mark == '0x10' else ''} | {fatia} | {classificados} | "
-                f"{cifrados} | {folga:+.2f}% | {spis} | {conflitos} |")
-    linhas += ["", "`SPI com 2 marks` deve ser **zero**: um SPI que carregasse duas "
-               "fatias seria vazamento de isolamento, não imprecisão de contagem.", ""]
-    return "\n".join(linhas)
-
-
-def tabela_politicas(por_cenario: dict) -> str:
-    """Compara risk-aware com EDF nos cenários que têm disputa.
-
-    Só C4a e C4b rodam nas duas políticas, e isso é deliberado: sem
-    disputa a fila tem no máximo uma tarefa e as duas políticas chegam à
-    mesma ordem, então comparar nos outros cenários não mediria nada.
-    """
-    por_pol: dict[tuple, list] = defaultdict(list)
-    for pref, runs in por_cenario.items():
-        for r in runs:
-            if r["politica"]:
-                por_pol[(pref, r["politica"])].append(r)
-    alvos = [(n, p) for n, p in CENARIOS
-             if len({k[1] for k in por_pol if k[0] == p}) > 1]
-    if not alvos:
-        return ""
-
-    linhas = ["### Risk-aware contra EDF, sob disputa", "",
-              "Média entre execuções ± IC95. A política ordena TAREFAS; ela não "
-              "muda quanta entropia se consome, e é por isso que o efeito aparece "
-              "na latência da URLLC e não na contagem de PPK.", "",
-              "| Cenário | Política | n | URLLC p50 | URLLC p95 | rebaixamentos | PPK obtido |",
-              "| --- | --- | --- | --- | --- | --- | --- |"]
-    for nome, pref in alvos:
-        for pol in sorted({k[1] for k in por_pol if k[0] == pref}):
-            runs = por_pol[(pref, pol)]
-            p50 = [st.median(r["latencias"]) for r in runs]
-            p95 = [pct(r["latencias"], .95) for r in runs]
-            reb = [r["contadores"].get("rotation_downgraded", 0) for r in runs]
-            ppk = [r["contadores"].get("ppk_fetched", 0) for r in runs]
-            ic = lambda v: 1.96 * st.stdev(v) / len(v) ** 0.5 if len(v) > 1 else 0.0
-            linhas.append(
-                f"| {nome} | {pol} | {len(runs)} | {st.fmean(p50):.2f} ± {ic(p50):.2f} ms | "
-                f"{st.fmean(p95):.1f} ± {ic(p95):.1f} ms | {st.median(reb):.0f} | "
-                f"{st.median(ppk):.0f} |")
+            f"| {nome} | {len(runs)} | "
+            f"{_med([r['n3'].get('p50') for r in runs if r['n3']]):.3f} ms | "
+            f"{_med([r['n3'].get('p99') for r in runs if r['n3']]):.3f} ms | "
+            f"{_med([st.median(r['latencias']) for r in runs]):.1f} ms | "
+            f"{_med([pct(r['latencias'], .95) for r in runs]):.1f} ms | "
+            f"{_med([r['embb'][0] for r in runs if r['embb']]):.2f} Mbps | "
+            f"{_med([r['miot'][0] for r in runs if r['miot']]):.2f}% |")
     return "\n".join(linhas) + "\n"
 
 
 def tabela_rotacao(por_cenario: dict) -> str:
     linhas = ["### Economia de rotação e de entropia", "",
-              "Mediana por execução de 300 s. `rebaixada` é a fatia que perdeu o PPK "
-              "novo e renovou só o ML-KEM do ESP por falta de entropia.", "",
+              "Mediana por execução de 300 s. `rebaixamentos` conta a fatia que perdeu "
+              "o PPK novo e renovou só o ML-KEM do ESP por falta de entropia.", "",
               "| Cenário | n | rekey de Child SA | reauth c/ PPK | PPK obtido | poço vazio | rebaixamentos |",
               "| --- | --- | --- | --- | --- | --- | --- |"]
     for nome, pref in CENARIOS:
         runs = por_cenario.get(pref, [])
         if not runs or pref in SEM_ORQUESTRADOR:
             continue
-        g = lambda k: st.median([r["contadores"].get(k, 0) for r in runs])
+        g = lambda k: _med([r["contadores"].get(k, 0) for r in runs])
         linhas.append(f"| {nome} | {len(runs)} | {g('child_rekey_end'):.0f} | "
                       f"{g('reauth_end'):.0f} | {g('ppk_fetched'):.0f} | "
                       f"{g('ppk_pool_empty'):.0f} | {g('rotation_downgraded'):.0f} |")
@@ -292,20 +216,96 @@ def tabela_entropia_por_fatia(por_cenario: dict) -> str:
         runs = por_cenario.get(pref, [])
         if not runs or pref in SEM_ORQUESTRADOR:
             continue
-        obt, reb, vaz = Counter(), Counter(), Counter()
-        for r in runs:
-            for e in r["eventos"]:
-                ev, fatia = e.get("event"), e.get("slice")
-                if ev == "ppk_fetched":
-                    obt[fatia] += 1
-                elif ev == "rotation_downgraded":
-                    reb[fatia] += 1
-                elif ev == "ppk_pool_empty":
-                    vaz[fatia] += 1
-        for s in ("URLLC", "EMBB", "MIOT"):
-            linhas.append(f"| {nome if s == 'URLLC' else ''} | {s} | {obt[s]} | "
-                          f"{reb[s]} | {vaz[s]} |")
+        for i, fatia in enumerate(("URLLC", "EMBB", "MIOT")):
+            soma = lambda k: sum(r["por_fatia"].get(fatia, Counter()).get(k, 0)
+                                 for r in runs)
+            linhas.append(f"| {nome if i == 0 else ''} | {fatia} | "
+                          f"{soma('ppk_fetched')} | {soma('rotation_downgraded')} | "
+                          f"{soma('ppk_pool_empty')} |")
     return "\n".join(linhas) + "\n"
+
+
+def tabela_politicas(por_cenario: dict) -> str:
+    """Compara risk-aware com EDF nos cenários que têm disputa.
+
+    Só C4a e C4b rodam nas duas políticas, e isso é deliberado: sem
+    disputa a fila tem no máximo uma tarefa e as duas chegam à mesma
+    ordem, então comparar nos outros cenários não mediria nada.
+    """
+    por_pol: dict[tuple, list] = defaultdict(list)
+    for pref, runs in por_cenario.items():
+        for r in runs:
+            if r["politica"]:
+                por_pol[(pref, r["politica"])].append(r)
+    alvos = [(n, p) for n, p in CENARIOS
+             if len({k[1] for k in por_pol if k[0] == p}) > 1]
+    if not alvos:
+        return ""
+    linhas = ["### Risk-aware contra EDF, sob disputa", "",
+              "Média entre execuções ± IC95. A política ordena TAREFAS; ela não muda "
+              "quanta entropia se consome, e é por isso que o efeito aparece na "
+              "latência da URLLC e não na contagem de PPK.", "",
+              "| Cenário | Política | n | URLLC p50 | URLLC p95 | rebaixamentos | PPK obtido |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
+    for nome, pref in alvos:
+        for pol in sorted({k[1] for k in por_pol if k[0] == pref}):
+            runs = por_pol[(pref, pol)]
+            p50 = [st.median(r["latencias"]) for r in runs]
+            p95 = [pct(r["latencias"], .95) for r in runs]
+            linhas.append(
+                f"| {nome} | {pol} | {len(runs)} | {st.fmean(p50):.2f} ± {_ic(p50):.2f} ms | "
+                f"{st.fmean(p95):.1f} ± {_ic(p95):.1f} ms | "
+                f"{_med([r['contadores'].get('rotation_downgraded', 0) for r in runs]):.0f} | "
+                f"{_med([r['contadores'].get('ppk_fetched', 0) for r in runs]):.0f} |")
+    return "\n".join(linhas) + "\n"
+
+
+# Marks do `mangle` por fatia (ver lab/ipsec/apply-n3-slice-marks.sh).
+MARK_POR_FATIA = {"0x10": "URLLC", "0x20": "EMBB", "0x30": "MIOT"}
+
+
+def tabela_isolamento(por_cenario: dict) -> str:
+    """Métrica B.3 — cada fatia só sai pela SA dela.
+
+    O `classification_snapshot` conta pacotes no `mangle`, ANTES de
+    cifrar, por mark de fatia; o `xfrm_snapshot` conta por SPI, DEPOIS de
+    cifrar, e cada SA carrega o mark da fatia dela. Isolamento perfeito
+    significa que os pacotes marcados para uma fatia aparecem só nas SAs
+    com aquele mark, e em igual número.
+
+    **A folga esperada não é zero.** A classificação conta antes de
+    cifrar e a SA depois, então pacotes em trânsito no kernel no instante
+    da leitura final aparecem num contador e não no outro. Investigar
+    uma folga de 2-3% nesta campanha é o que revelou o poller a 0,5 s ser
+    lento demais para a frequência de rotação; hoje roda a 0,1 s.
+
+    O teste NEGATIVO da mesma propriedade é
+    `evaluation/negative_teid_test.py`: esta tabela mostra que cada fatia
+    sai pela SA dela, e o outro mostra que nada mais sai.
+    """
+    linhas = ["### Isolamento: cada fatia sai pela SA dela (B.3)", "",
+              "`classificados` conta no `mangle` antes de cifrar; `cifrados` soma o "
+              "pico de cada SPI com o mark da fatia, depois de cifrar. A folga vem de "
+              "pacotes em trânsito entre os dois pontos de contagem.", "",
+              "| Cenário | Fatia | classificados | cifrados | folga | SPIs | SPI com 2 marks |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
+    for nome, pref in CENARIOS:
+        runs = por_cenario.get(pref, [])
+        if not runs:
+            continue
+        for i, (mark, fatia) in enumerate(sorted(MARK_POR_FATIA.items())):
+            cls = sum(r["classificados"].get(mark, 0) for r in runs)
+            cif = sum(r["cifrados"].get(mark, 0) for r in runs)
+            spis = sum(r["spis"].get(mark, 0) for r in runs)
+            conf = sum(r["conflitos"] for r in runs)
+            if not cls and not cif:
+                continue
+            folga = 100.0 * (cls - cif) / cls if cls else 0.0
+            linhas.append(f"| {nome if i == 0 else ''} | {fatia} | {cls} | {cif} | "
+                          f"{folga:+.2f}% | {spis} | {conf} |")
+    linhas += ["", "`SPI com 2 marks` deve ser **zero**: um SPI que carregasse duas "
+               "fatias seria vazamento de isolamento, não imprecisão de contagem.", ""]
+    return "\n".join(linhas)
 
 
 def main() -> int:

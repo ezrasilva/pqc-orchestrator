@@ -259,7 +259,7 @@ O escalonador ordenar tarefas por criticidade **não basta**: se o poço distrib
 
 #### 3. A ordem do vetor de criticidade produz uma consequência não óbvia
 
-No C2, a **mIoT recebe 842 chaves de QKD e a eMBB zero**. Pelo desempate lexicográfico as duas empatam em `I` (média) e decide o `H`: a mIoT tem horizonte de confidencialidade **alto** (telemetria precisa seguir secreta por anos, logo é mais exposta a *harvest now, decrypt later*) contra o **baixo** da eMBB, cuja mídia perde valor em dias. Ninguém ordenaria mIoT acima de eMBB por intuição — é o vetor que produz isso, e é um argumento a favor de derivar a prioridade do descritor de fatia em vez de escolhê-la.
+No C2, a **mIoT é atendida em 32,2% das tentativas de PPK e a eMBB em 0%** (842 chaves contra zero, em 2.611 tentativas cada). Pelo desempate lexicográfico as duas empatam em `I` (média) e decide o `H`: a mIoT tem horizonte de confidencialidade **alto** (telemetria precisa seguir secreta por anos, logo é mais exposta a *harvest now, decrypt later*) contra o **baixo** da eMBB, cuja mídia perde valor em dias. Ninguém ordenaria mIoT acima de eMBB por intuição — é o vetor que produz isso, e é um argumento a favor de derivar a prioridade do descritor de fatia em vez de escolhê-la.
 
 #### 4. Proteção máxima custa o dobro pelo mesmo resultado
 
@@ -277,6 +277,73 @@ Na v1 as mesmas diferenças eram de **1,95 e 1,26 ms**. Os dois mecanismos se so
 #### 6. O fim a fim não sustenta afirmação fina
 
 O piso sem IPsec é de 54,8 ms, e os cenários diferenciados somam ~4,7 ms. Qualquer p99 fim a fim é inutilizável: o C0, **sem cripto nenhuma**, chega a 1069 ms em execuções isoladas. É a justificativa medida para a sonda de alta resolução no N3, e o motivo de a Fase A existir.
+
+#### 7. A contagem crua de PPK mede retentativa, não alocação
+
+Achado conferindo o notebook contra as tabelas: pela contagem absoluta a
+**mIoT obtém mais PPK que a URLLC** no C2, C3 e C4b (589 contra 260 no C3),
+o que inverteria a leitura da tese. Não é o mecanismo priorizando a mIoT — é
+viés de amostragem do laço de retentativa.
+
+Uma reauth que falha por poço vazio **não reautentica nada**, logo não zera
+`established Ns ago` da IKE_SA. O portão de idade do `rotation_driver`
+compara essa idade com o `Tr_ppk`, então, uma vez vencido o prazo, a fatia
+faminta re-enfileira a cada tick até o fim da execução. Medido num C3
+(intervalos entre `ppk_fetch_start`):
+
+| Fatia | tentativas em 300 s | intervalo | leitura |
+| --- | --- | --- | --- |
+| URLLC | 10 | 29,9 s | o próprio `Tr_ppk`: acerta e zera a idade |
+| eMBB | 104 | 2,5 s | o intervalo do tick |
+| mIoT | 72 | 2,5 s | o intervalo do tick |
+
+A mIoT acumula 72 tentativas contra 10 da URLLC; com ~36% de sucesso, sai
+com mais chaves em números absolutos. **A métrica válida é a taxa de
+sucesso**, que não depende do número de tentativas — e ela sai na ordem
+pretendida em todos os cenários:
+
+| Cenário | URLLC | mIoT | eMBB |
+| --- | --- | --- | --- |
+| C2 proteção máxima | 100,0% | 32,2% | 0,0% |
+| C3 proposta | 100,0% | 36,5% | 13,7% |
+| C4a escassez | 100,0% | 0,0% | 0,0% |
+| C4b contenção | 100,0% | 36,9% | 13,3% |
+
+URLLC > mIoT > eMBB, que é exatamente o vetor `I > H > D`. A tese se
+sustenta; o que estava errado era a métrica. As tabelas geradas passaram a
+reportar tentativas e taxa ao lado da contagem.
+
+**Ressalva de projeto, em aberto.** O recuo após falha não existe: uma fatia
+sem entropia bate no KMS a cada 2,5 s indefinidamente. Os números acima são
+válidos como estão (a taxa é imune a isso), mas o comportamento não é o que
+a arquitetura descreve, e corrigi-lo exige recampanha.
+
+#### 8. Renovar PPK colide com o rekey de Child SA
+
+**31,5% das reauths da URLLC levam de 6 a 15 s** em vez dos ~26 ms medianos
+— e nenhuma outra fatia apresenta isso. A causa está no log do charon:
+
+```
+13:16:18.648967  unable to reauthenticate in CHILD_SA DELETED state, delaying for 11s
+13:16:29.649454  reauthenticating IKE_SA n3-urllc-cu-edge[7]
+13:16:29.667606  state change: CONNECTING => ESTABLISHED
+```
+
+Dos 11.021 ms medidos, 11.000 são adiamento deliberado do charon e 18 ms são
+a reauth real. Ao rekeyar uma Child SA o strongSwan mantém a antiga por
+`delay closing of inbound CHILD_SA ... for 5s`, e **recusa reautenticar a
+IKE_SA enquanto uma Child SA dela está em `DELETED`**. A URLLC é a única
+fatia que rotaciona as duas coisas rápido o bastante para colidir
+(`Tr_child` 12 s contra `Tr_ppk` 30 s), e a fase da colisão é uniforme — daí
+a distribuição achatada entre 6 e 15 s em vez de picos em 4/8/16 s de
+retransmissão.
+
+Consequências: (a) o plano de dados **não** sofre, porque o
+`make_before_break` cobre a troca — é cauda de plano de controle; (b) um
+projeto de rotação não pode escolher `Tr_child` e `Tr_ppk`
+independentemente: períodos que colidem fazem o PPK atrasar até duas ordens
+de grandeza; (c) só apareceu porque o consolidador passou a retomar as
+durações dos estágios — as tabelas de contagem não mostravam nada.
 
 ## Métricas e instrumentação
 

@@ -13,6 +13,8 @@
 
 Total: **223 válidas** de 240.
 
+Janela: `--desde 1792606020`.
+
 ### Desempenho por cenário
 
 Mediana entre execuções válidas. `N3` é a sonda de alta resolução no túnel (0,05 ms de piso); o fim a fim atravessa o rádio ZMQ, cujo piso é ~55 ms e cuja cauda domina qualquer p99.
@@ -41,20 +43,22 @@ Mediana por execução de 300 s. `rebaixamentos` conta a fatia que perdeu o PPK 
 
 Soma sobre as execuções válidas. É a tabela que testa a tese: pela ordem de criticidade I > H > D a URLLC deveria manter o PPK e as outras fatias renovar só o ML-KEM.
 
-| Cenário | Fatia | PPK obtido | rebaixada | poço vazio |
-| --- | --- | --- | --- | --- |
-| C2 proteção máxima | URLLC | 229 | 0 | 0 |
-|  | EMBB | 0 | 1039 | 2611 |
-|  | MIOT | 842 | 784 | 1769 |
-| C3 proposta | URLLC | 260 | 0 | 0 |
-|  | EMBB | 343 | 460 | 2161 |
-|  | MIOT | 589 | 153 | 1023 |
-| C4a escassez de QKD | URLLC | 543 | 0 | 0 |
-|  | EMBB | 0 | 1095 | 5355 |
-|  | MIOT | 0 | 414 | 3476 |
-| C4b contenção | URLLC | 542 | 0 | 0 |
-|  | EMBB | 697 | 973 | 4554 |
-|  | MIOT | 1251 | 321 | 2139 |
+A contagem crua de `PPK obtido` **não** mede a alocação: uma fatia faminta re-tenta a cada tick (2,5 s) porque a reauth falhada não zera a idade da IKE_SA, então ela acumula tentativas e, por acumulá-las, acaba obtendo mais chaves que a URLLC — que tenta só a cada 30 s e acerta sempre. A métrica que testa a tese é a **taxa de sucesso**, que é independente do número de tentativas.
+
+| Cenário | Fatia | tentativas | PPK obtido | taxa | rebaixada | poço vazio |
+| --- | --- | --- | --- | --- | --- | --- |
+| C2 proteção máxima | URLLC | 229 | 229 | 100.0% | 0 | 0 |
+|  | EMBB | 2611 | 0 | 0.0% | 1039 | 2611 |
+|  | MIOT | 2611 | 842 | 32.2% | 784 | 1769 |
+| C3 proposta | URLLC | 260 | 260 | 100.0% | 0 | 0 |
+|  | EMBB | 2504 | 343 | 13.7% | 460 | 2161 |
+|  | MIOT | 1612 | 589 | 36.5% | 153 | 1023 |
+| C4a escassez de QKD | URLLC | 543 | 543 | 100.0% | 0 | 0 |
+|  | EMBB | 5355 | 0 | 0.0% | 1095 | 5355 |
+|  | MIOT | 3476 | 0 | 0.0% | 414 | 3476 |
+| C4b contenção | URLLC | 542 | 542 | 100.0% | 0 | 0 |
+|  | EMBB | 5251 | 697 | 13.3% | 973 | 4554 |
+|  | MIOT | 3390 | 1251 | 36.9% | 321 | 2139 |
 
 ### Risk-aware contra EDF, sob disputa
 

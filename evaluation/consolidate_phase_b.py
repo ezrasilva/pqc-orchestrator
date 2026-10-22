@@ -77,6 +77,9 @@ def carrega(caminho: Path, prefixo: str) -> dict:
     """
     contadores: Counter = Counter()
     latencias: list[float] = []
+    # Duracao de cada estagio de rotacao. Retidas porque percentil exige a
+    # amostra, e sao poucas (~270 por execucao contra 3 mil latencias).
+    duracoes: dict[str, list[float]] = defaultdict(list)
     embb: list[float] = []
     miot: list[float] = []
     n3: dict[str, float] = {}
@@ -104,6 +107,10 @@ def carrega(caminho: Path, prefixo: str) -> dict:
         if ev == "latency_sample":
             if e.get("rtt_ms") is not None:
                 latencias.append(e["rtt_ms"])
+        elif ev in ("child_rekey_end", "reauth_end", "ppk_fetch_end",
+                    "ppk_install_end"):
+            if e.get("duration_seconds") is not None:
+                duracoes[ev[:-4]].append(e["duration_seconds"] * 1000.0)
         elif ev == "throughput_probe_summary":
             resumos_vazao += 1
             if e.get("label") == "embb":
@@ -149,7 +156,8 @@ def carrega(caminho: Path, prefixo: str) -> dict:
 
     return {
         "arquivo": caminho.name, "contadores": contadores, "condicao": cond,
-        "latencias": latencias, "embb": embb, "miot": miot, "n3": n3,
+        "latencias": latencias, "duracoes": duracoes,
+        "embb": embb, "miot": miot, "n3": n3,
         "politica": politica, "por_fatia": por_fatia,
         "classificados": classificados,
         "cifrados": {m: sum(d.values()) for m, d in picos_spi.items()},
@@ -210,8 +218,15 @@ def tabela_entropia_por_fatia(por_cenario: dict) -> str:
               "Soma sobre as execuções válidas. É a tabela que testa a tese: pela "
               "ordem de criticidade I > H > D a URLLC deveria manter o PPK e as "
               "outras fatias renovar só o ML-KEM.", "",
-              "| Cenário | Fatia | PPK obtido | rebaixada | poço vazio |",
-              "| --- | --- | --- | --- | --- |"]
+              "A contagem crua de `PPK obtido` **não** mede a alocação: uma "
+              "fatia faminta re-tenta a cada tick (2,5 s) porque a reauth "
+              "falhada não zera a idade da IKE_SA, então ela acumula "
+              "tentativas e, por acumulá-las, acaba obtendo mais chaves que a "
+              "URLLC — que tenta só a cada 30 s e acerta sempre. A métrica que "
+              "testa a tese é a **taxa de sucesso**, que é independente do "
+              "número de tentativas.", "",
+              "| Cenário | Fatia | tentativas | PPK obtido | taxa | rebaixada | poço vazio |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
     for nome, pref in CENARIOS:
         runs = por_cenario.get(pref, [])
         if not runs or pref in SEM_ORQUESTRADOR:
@@ -219,9 +234,12 @@ def tabela_entropia_por_fatia(por_cenario: dict) -> str:
         for i, fatia in enumerate(("URLLC", "EMBB", "MIOT")):
             soma = lambda k: sum(r["por_fatia"].get(fatia, Counter()).get(k, 0)
                                  for r in runs)
-            linhas.append(f"| {nome if i == 0 else ''} | {fatia} | "
-                          f"{soma('ppk_fetched')} | {soma('rotation_downgraded')} | "
-                          f"{soma('ppk_pool_empty')} |")
+            obtido, vazio = soma("ppk_fetched"), soma("ppk_pool_empty")
+            tentativas = obtido + vazio
+            taxa = f"{obtido / tentativas * 100:.1f}%" if tentativas else "—"
+            linhas.append(f"| {nome if i == 0 else ''} | {fatia} | {tentativas} | "
+                          f"{obtido} | {taxa} | {soma('rotation_downgraded')} | "
+                          f"{vazio} |")
     return "\n".join(linhas) + "\n"
 
 
@@ -347,8 +365,17 @@ def main() -> int:
         desc = {k: v for k, v in d.items() if k != "valida"}
         cab.append(f"| {nome} | {d['valida']} | {sum(desc.values())} | "
                    f"{', '.join(f'{k}={v}' for k, v in sorted(desc.items())) or '—'} |")
+    janela = []
+    if args.desde:
+        janela.append(f"--desde {args.desde:.0f}")
+    if args.ate:
+        janela.append(f"--ate {args.ate:.0f}")
     cab += ["", f"Total: **{procedencia['valida']} válidas** de "
             f"{sum(procedencia.values())}.", ""]
+    # Registrar a janela: sem isto o documento gerado não diz qual bloco
+    # da campanha produziu os números, e `results/` acumula blocos.
+    if janela:
+        cab += [f"Janela: `{' '.join(janela)}`.", ""]
 
     texto = "\n".join(cab) + "\n" + "\n".join([
         tabela_desempenho(por_cenario),

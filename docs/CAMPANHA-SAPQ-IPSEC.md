@@ -224,6 +224,60 @@ C4a e C4b rodam com risk-aware e com EDF. Só há diferença entre as políticas
 
 **Execução.** 30 repetições de 300 s por cenário, com ordem intercalada e sorteada entre cenários, warm-up descartado e tráfego desde t = 0.
 
+
+### Resultados da Fase B
+
+**Os números estão em [`FASE-B-DADOS-CONSOLIDADOS.md`](FASE-B-DADOS-CONSOLIDADOS.md)**, gerado dos dados por `evaluation/consolidate_phase_b.py`, com a procedência de cada execução declarada. Esta seção guarda a interpretação e a única comparação que o gerador não cobre: entre as duas versões da implementação.
+
+Duas campanhas completas, de 300 s por iteração e ordem em blocos aleatorizados:
+
+| Campanha | Quando | Iterações | Válidas | O que distingue |
+| --- | --- | --- | --- | --- |
+| **v1** | 19–21/10 | 240 | 170 + 109 | poço de entropia em round-robin |
+| **v2** | 21–22/10 | 240 | **223** | poço de entropia por criticidade |
+
+#### 1. O túnel único paga 2,7× a latência de túnel
+
+N3 p50 de **0,162 ms** no C1 contra **0,060 ms** nos cenários diferenciados, sobre um piso de 0,048 ms sem IPsec. Um SA só carrega todo o tráfego e tudo disputa ali. É o argumento mais direto a favor de separar as fatias, e só é visível na sonda de alta resolução: no fim a fim o C1 parece *melhor* (55,9 contra 59,5 ms), porque lá o rádio domina.
+
+#### 2. A prioridade na entropia é necessária, não decorativa
+
+Rebaixamentos da URLLC por execução de 300 s, média ± IC95:
+
+| Cenário | v1 round-robin | **v2 por criticidade** |
+| --- | --- | --- |
+| C3 proposta | 0,68 ± 0,38 | **0,00 ± 0,00** |
+| **C4a escassez** | **28,85 ± 0,56** | **0,00 ± 0,00** |
+| C2 proteção máxima | 0,68 ± 0,35 | **0,00 ± 0,00** |
+| C4b contenção | 0,73 ± 0,26 | **0,00 ± 0,00** |
+
+Zero em 153 execuções, com IC de ±0,00 — não é "menos", é nenhum. No C4a a fração da entropia que vai para a URLLC sobe de **36% para 100%**: sob escassez severa, eMBB e mIoT recebem **zero** PPK e as 543 chaves vão todas para a fatia de maior impacto.
+
+O escalonador ordenar tarefas por criticidade **não basta**: se o poço distribui chaves em round-robin, a fatia crítica rebaixa quando chega a vez dela e o poço está vazio. A partilha de entropia precisa da mesma ordem — que é o que o modelo já dizia (`I` define "a prioridade **e a partilha de QKD**") e o que a v1 não implementava.
+
+> **A v1 não era mais rápida, era menos segura.** A URLLC fica ~1 ms mais lenta na v2 (p50 de 58,38 para 59,45 ms, significativo com IC de ±0,14). Isso não é regressão: ela passou a **pagar pela renovação de PPK em vez de pulá-la**. O desvio entre execuções também caiu (±0,40 para ±0,14), porque ela deixou de alternar entre renovar e rebaixar ao sabor do round-robin.
+
+#### 3. A ordem do vetor de criticidade produz uma consequência não óbvia
+
+No C2, a **mIoT recebe 842 chaves de QKD e a eMBB zero**. Pelo desempate lexicográfico as duas empatam em `I` (média) e decide o `H`: a mIoT tem horizonte de confidencialidade **alto** (telemetria precisa seguir secreta por anos, logo é mais exposta a *harvest now, decrypt later*) contra o **baixo** da eMBB, cuja mídia perde valor em dias. Ninguém ordenaria mIoT acima de eMBB por intuição — é o vetor que produz isso, e é um argumento a favor de derivar a prioridade do descritor de fatia em vez de escolhê-la.
+
+#### 4. Proteção máxima custa o dobro pelo mesmo resultado
+
+C2 e C3 alcançam a mesma proteção da URLLC (zero rebaixamentos), mas o C2 paga **76 rebaixamentos por execução contra 23** do C3, e **106 rekeys de Child SA contra 60**. Proteger tudo no máximo não compra segurança a mais onde importa; compra escassez para as outras fatias.
+
+#### 5. Com prioridade na entropia, a política de escalonamento importa menos
+
+| Cenário | risk-aware | EDF | Diferença |
+| --- | --- | --- | --- |
+| C4a | 56,90 ± 0,27 ms | 57,30 ± 0,37 ms | 0,40 ms, **não significativa** |
+| C4b | 59,27 ± 0,09 ms | 59,62 ± 0,18 ms | 0,35 ms, significativa |
+
+Na v1 as mesmas diferenças eram de **1,95 e 1,26 ms**. Os dois mecanismos se sobrepõem: quando a alocação de entropia já protege a fatia crítica, sobra menos efeito para a ordenação de tarefas produzir. É uma ressalva honesta ao valor isolado do escalonador risk-aware — ele continua melhor, mas a margem encolhe quando a entropia é alocada corretamente.
+
+#### 6. O fim a fim não sustenta afirmação fina
+
+O piso sem IPsec é de 54,8 ms, e os cenários diferenciados somam ~4,7 ms. Qualquer p99 fim a fim é inutilizável: o C0, **sem cripto nenhuma**, chega a 1069 ms em execuções isoladas. É a justificativa medida para a sonda de alta resolução no N3, e o motivo de a Fase A existir.
+
 ## Métricas e instrumentação
 
 Cada métrica precisa de um ponto de medição que não dependa do rádio. A tabela diz o que medir e com quê.

@@ -313,10 +313,29 @@ URLLC > mIoT > eMBB, que é exatamente o vetor `I > H > D`. A tese se
 sustenta; o que estava errado era a métrica. As tabelas geradas passaram a
 reportar tentativas e taxa ao lado da contagem.
 
-**Ressalva de projeto, em aberto.** O recuo após falha não existe: uma fatia
-sem entropia bate no KMS a cada 2,5 s indefinidamente. Os números acima são
-válidos como estão (a taxa é imune a isso), mas o comportamento não é o que
-a arquitetura descreve, e corrigi-lo exige recampanha.
+**Corrigido, pendente de recampanha.** O `rotation_driver` ganhou um segundo
+portão, por tempo desde a última TENTATIVA (`_pode_tentar_ppk`), e não só por
+idade da SA. O período escolhido é o próprio `Tr_ppk`, não um recuo
+exponencial: o que a arquitetura especifica é "renova a cada `Tr_ppk`, e se a
+entropia não estiver lá passa o período só com ML-KEM no ESP"; um recuo
+exponencial faria a fatia tentar menos que o projetado depois de a entropia
+voltar, atrasando a recuperação. Quando a tentativa dá certo os dois portões
+concordam, porque o sucesso zera a idade da IKE_SA — eles divergem só no caso
+que importa, o da tentativa que falha.
+
+Coberto por `evaluation/tests/test_rotation_driver_backoff.py`, que falha
+contra o código antigo com o número exato do defeito (120 tentativas em 300 s
+contra as 10 projetadas). O teste existe porque este defeito atravessou uma
+campanha inteira sem aparecer como erro — só como um número impossível numa
+tabela — e revalidar a mão custa ~20 h.
+
+**O que muda nos números da próxima campanha.** A taxa de sucesso deve ficar
+onde está, porque é imune ao viés; o que cai em uma ordem de grandeza são as
+contagens de tentativa, de `poço vazio` e de **rebaixamento** — a eMBB sai de
+~43 rebaixamentos por execução para ~3, já que passa a ser rebaixada uma vez
+por período e não uma vez por tick. A constatação 4 ("proteção máxima custa o
+dobro") compara rebaixamentos entre cenários e por isso sobrevive à mudança de
+escala, mas os valores absolutos citados nela terão de ser regerados.
 
 #### 8. Renovar PPK colide com o rekey de Child SA
 

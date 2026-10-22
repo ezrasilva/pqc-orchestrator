@@ -31,6 +31,28 @@ Agora o enfileiramento é **condicionado à idade**: uma fatia só entra na
 fila quando a idade da SA correspondente passa do seu prazo. A idade da
 Child SA governa o `REKEY_CHILD`, a da IKE_SA governa o `REAUTH_PPK` —
 são duas idades distintas, lidas de linhas diferentes do `swanctl`.
+
+**A idade sozinha não basta, e isso foi medido.** O portão de idade
+pressupõe que a tentativa zere a idade que ele lê — o que só vale quando
+ela dá certo. Uma reauth que falha por escassez de QKD não reautentica
+nada, logo não mexe em `established Ns ago`, e o portão continua aberto
+no tick seguinte, e no próximo, até o fim da execução. Medido na
+campanha v2 (intervalos entre `ppk_fetch_start` num C3 de 300 s):
+
+| Fatia | tentativas | intervalo | o que o intervalo é |
+| --- | --- | --- | --- |
+| URLLC | 10 | 29,9 s | o próprio `Tr_ppk` — acerta e zera a idade |
+| eMBB | 104 | 2,5 s | o intervalo do tick |
+| mIoT | 72 | 2,5 s | o intervalo do tick |
+
+Duas consequências. A de comportamento: uma fatia sem entropia bate no
+KMS 40× mais que o projetado, o que nenhuma arquitetura descreve. A de
+medição, pior: por acumular tentativas, a mIoT obtinha **mais** chaves
+que a URLLC em números absolutos (589 contra 260), o que inverte a
+leitura da tese sem que nada no mecanismo esteja priorizando a mIoT.
+
+Daí o segundo portão, por **tempo desde a última tentativa**: ver
+`_pode_tentar_ppk`.
 """
 
 from __future__ import annotations
@@ -38,6 +60,7 @@ from __future__ import annotations
 import re
 import subprocess
 import threading
+import time
 import traceback
 from typing import NamedTuple
 
@@ -157,6 +180,13 @@ class RotationDriver:
         self._tr_ppk = tr_ppk or TR_PPK_SECONDS
         self._stop = threading.Event()
         self._thread: "threading.Thread | None" = None
+        # Relógio do recuo: quando cada fatia tentou renovar PPK pela
+        # última vez, com ou sem sucesso. `monotonic` porque é intervalo,
+        # não instante — não pode andar para trás com ajuste de relógio.
+        self._ultima_tentativa_ppk: dict[SliceType, float] = {}
+        # Fatias que já anunciaram que estão recuando. Serve só para não
+        # emitir um evento por tick: o anúncio é por janela de recuo.
+        self._recuo_anunciado: set[SliceType] = set()
 
     def _enfileira(self, slice: SliceType, tipo: TaskType, prazo: float,
                    idade: float, custo: float) -> None:
@@ -178,6 +208,41 @@ class RotationDriver:
         emit("rotation_enqueued", slice=slice.value, task_type=tipo.value,
              age_seconds=idade, deadline_seconds=prazo, slack_seconds=folga)
 
+    def _pode_tentar_ppk(self, slice: SliceType, tr_ppk: float) -> bool:
+        """Segundo portão: só tenta renovar PPK se já passou `Tr_ppk`
+        desde a ÚLTIMA TENTATIVA, não desde o último sucesso.
+
+        **Por que o período e não um recuo exponencial.** O que a
+        arquitetura especifica é "a fatia renova o PPK a cada `Tr_ppk`";
+        se a entropia não estiver lá, ela passa aquele período renovando
+        só o ML-KEM do ESP e tenta de novo no período seguinte. Um recuo
+        exponencial faria a fatia tentar MENOS que o projetado depois de
+        uma sequência de falhas, inclusive depois de a entropia voltar —
+        atrasaria a recuperação, que é o oposto do que se quer. O período
+        é o teto natural, e é o único valor que não precisa de
+        justificativa separada no artigo.
+
+        **Por que isto não é redundante com o portão de idade.** Os dois
+        concordam quando a tentativa dá certo (o sucesso zera a idade da
+        IKE_SA, e `Tr_ppk` se passou desde a tentativa). Eles divergem
+        exatamente no caso que importa: a tentativa que falha deixa a
+        idade intacta, e só este portão a segura.
+        """
+        ultima = self._ultima_tentativa_ppk.get(slice)
+        if ultima is None:
+            return True  # primeira tentativa da execução
+        desde = time.monotonic() - ultima
+        if desde >= tr_ppk:
+            return True
+        if slice not in self._recuo_anunciado:
+            # Uma vez por janela, não uma vez por tick: anunciar a cada
+            # tick repetiria o próprio volume que este portão corta.
+            self._recuo_anunciado.add(slice)
+            emit("ppk_retry_deferred", slice=slice.value,
+                 seconds_since_attempt=round(desde, 2), tr_ppk_seconds=tr_ppk,
+                 reason="tentativa anterior não renovou o PPK; aguarda o período")
+        return False
+
     def _tick(self) -> None:
         charon_pid = find_charon_pid(self._netns)
         if charon_pid is None:
@@ -189,7 +254,9 @@ class RotationDriver:
             # trabalho duplicado e, pior, um evento de rotação que a
             # análise contaria como se tivesse vencido por idade.
             tr_ppk = self._tr_ppk[slice]
-            if idades.ike_seconds >= tr_ppk:
+            if idades.ike_seconds >= tr_ppk and self._pode_tentar_ppk(slice, tr_ppk):
+                self._ultima_tentativa_ppk[slice] = time.monotonic()
+                self._recuo_anunciado.discard(slice)
                 self._enfileira(slice, TaskType.REAUTH_PPK, tr_ppk,
                                 idades.ike_seconds,
                                 ESTIMATED_REAUTH_PPK_COST_SECONDS)
@@ -198,6 +265,14 @@ class RotationDriver:
                 # deixaria a fatia sem rotação nenhuma. Esse caso é
                 # tratado no dreno, não aqui: ver `_drena`.
                 continue
+
+            # Sem `continue` quando o recuo segura a tentativa, **de
+            # propósito**: durante a janela de recuo não há tentativa,
+            # logo não há falha, logo `_drena` não rebaixa — e sem esta
+            # queda a fatia ficaria sem rotação NENHUMA pela janela
+            # inteira, que é o defeito que o rebaixamento existe para
+            # evitar. Aqui ela simplesmente rotaciona o ESP pela idade,
+            # que é o nível barato ao qual seria rebaixada de todo jeito.
 
             tr_child = self._tr_child[slice]
             if idades.child_seconds is not None and idades.child_seconds >= tr_child:
@@ -283,6 +358,8 @@ class RotationDriver:
 
     def start(self) -> None:
         self._stop.clear()
+        self._ultima_tentativa_ppk.clear()
+        self._recuo_anunciado.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 

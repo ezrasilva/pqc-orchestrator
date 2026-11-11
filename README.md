@@ -1,3 +1,13 @@
+# pqc-orchestrator (arquivado)
+
+**Este repositório foi arquivado em 2026-11-11. O trabalho continua em
+[sapq-ipsec](https://github.com/ezrasilva/sapq-ipsec)**, que reúne este
+código junto com o resto do projeto (testbed de RAN, interceptação
+IPsec, documentação). Atualize qualquer link ou clone pra lá — o
+conteúdo abaixo fica só como registro histórico, sem atualização.
+
+---
+
 # pqc-orchestrator
 
 Orquestrador de rotação/revogação de chaves híbridas PQC(+QKD simulado)
